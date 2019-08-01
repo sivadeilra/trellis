@@ -1,10 +1,13 @@
 use crate::error::Error;
-use crate::find_sources;
 use crate::ramp_table::RampTable;
+use log::debug;
 
 /// Reads an edge list and produces a topological sort of the graph.
 pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
+    debug!("topo_sort");
     let nv = graph.num_keys();
+
+    debug!("nv = {}", nv);
 
     // Verts visited. these are known to be acyclic, and have been written
     // to the output vector.
@@ -29,6 +32,7 @@ pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
         assert!(work_stack.is_empty());
 
         if visited[source] {
+            debug!("v{} already visited", source);
             continue;
         }
 
@@ -36,34 +40,89 @@ pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
             // Don't report isolated verts (totally disconnected verts).
             // If this vert is actually a sink (has at least one in-edge but no out-edges),
             // then we will discover it via another node.
+            debug!("v{} has no edges, ignoring (for now)", source);
             continue;
         }
 
+        /* also good:
         in_work_set[source] = true;
         work_stack.push((source as u32, source_tos.iter()));
-
-        while let Some((v, mut v_edges)) = work_stack.pop() {
-            if let Some(&next_v) = v_edges.next() {
+        'work_stack_loop: while let Some((v, mut v_edges)) = work_stack.pop() {
+            while let Some(&next_v) = v_edges.next() {
                 if in_work_set[next_v as usize] {
                     // We have found a cycle.
                     return Err(Error::FoundCycle);
                 }
                 if visited[next_v as usize] {
-                    work_stack.push((v, v_edges)); // put iterator back
+                    // do nothing, because we have already checked subgraph at next_v
                 } else {
                     // We need to descend into this forward edge.
                     work_stack.push((v, v_edges));
                     work_stack.push((next_v, graph.entry_values(next_v as usize).iter()));
+                    continue 'work_stack_loop;
+                }
+            }
+            // We have finished traversing the forward edges for v.
+            // This means that v is now "done".
+            in_work_set[v as usize] = false;
+            visited[v as usize] = true;
+            topo_order.push(v);
+        }
+        */
+
+        debug!("v{} starting traversal", source);
+        let mut v = source as u32;
+        let mut v_edges = source_tos.iter();
+        in_work_set[v as usize] = true;
+        loop {
+            assert!(in_work_set[v as usize]);
+            for (wv, _) in work_stack.iter() {
+                assert!(in_work_set[*wv as usize], "verts in work_stack should also be set in in_work_set");
+            }
+            if let Some(&next_v) = v_edges.next() {
+                if in_work_set[next_v as usize] {
+                    debug!("... found cycle");
+                    // We have found a cycle.
+                    return Err(Error::FoundCycle);
+                }
+                if visited[next_v as usize] {
+                    debug!("... v{} --> v{}, already seen v{}", v, next_v, next_v);
+                    // do nothing, because we have already checked subgraph at next_v
+                } else {
+                    // We need to descend into this forward edge.
+                    debug!("... v{} --> v{}, descending", v, next_v);
+                    work_stack.push((v, v_edges));
+                    in_work_set[next_v as usize] = true;
+                    v = next_v;
+                    v_edges = graph.entry_values(next_v as usize).iter();
                 }
             } else {
-                // We have finished traversing the forward edges for v.
-                // This means that v is now "done".
-                in_work_set[v as usize] = false;
-                visited[v as usize] = true;
+                // We're done with the subgraph under v.
+                debug!("... v{} is now done, popping stack", v);
                 topo_order.push(v);
-                // Continue to the next item in the work stack.
+                visited[v as usize] = true;
+                in_work_set[v as usize] = false;
+                // move to previous entry on stack.
+                if let Some((prev_v, prev_v_edges)) = work_stack.pop() {
+                    debug!("... popped to v{}", prev_v);
+                    assert!(in_work_set[prev_v as usize]);
+                    assert!(!visited[prev_v as usize]);
+                    v = prev_v;
+                    v_edges = prev_v_edges;
+                } else {
+                    debug!("... done.");
+                    // All done.
+                    break;
+                }
             }
         }
+    }
+
+    assert!(in_work_set.iter().all(|v| !*v), "in_work_set should all be false");
+    assert!(work_stack.is_empty());
+
+    for &v in topo_order.iter() {
+        assert!(v < graph.num_keys() as u32);
     }
 
     Ok(topo_order)
@@ -78,74 +137,7 @@ pub fn topo_sort(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ramp_table::RampTable;
-    use std::collections::HashMap;
-
-    type Graph = RampTable<u32>;
-
-    struct GraphBuilder {
-        // from -> to
-        edges: HashMap<u32, Vec<u32>>,
-    }
-    impl GraphBuilder {
-        pub fn edge(&mut self, from: u32, to: u32) {
-            self.edges.entry(from).or_default().push(to);
-        }
-        pub fn from(&mut self, from: u32) -> GraphBuilderFrom<'_> {
-            GraphBuilderFrom {
-                builder: self,
-                from,
-            }
-        }
-        pub fn path(&mut self, verts: &[u32]) {
-            for w in verts.windows(2) {
-                self.edge(w[0], w[1]);
-            }
-        }
-        pub fn build(self) -> Graph {
-            let mut sorted = self.edges.iter().collect::<Vec<(&u32, &Vec<u32>)>>();
-            sorted.sort_by_key(|e| e.0);
-            let mut graph = Graph::new();
-            for (&from, to_list) in sorted.iter() {
-                // Fill in any empty 'from' entries.
-                while graph.num_keys() < from as usize {
-                    graph.finish_key();
-                }
-                graph.push_entry_copy(to_list);
-            }
-
-            let num_verts = self.edges.iter().map(|(&from, to_list)| {
-                (from + 1).max(to_list.iter().map(|&v| v + 1).max().unwrap_or(0))
-            }).max().unwrap_or(0);
-
-            while graph.num_keys() < num_verts as usize {
-                graph.finish_key();
-            }
-
-            graph
-        }
-    }
-
-    struct GraphBuilderFrom<'a> {
-        from: u32,
-        builder: &'a mut GraphBuilder,
-    }
-
-    impl<'a> GraphBuilderFrom<'a> {
-        pub fn to(self, to: u32) -> Self {
-            self.builder.edge(self.from, to);
-            Self {
-                builder: self.builder,
-                from: to,
-            }
-        }
-    }
-
-    fn graph_builder() -> GraphBuilder {
-        GraphBuilder {
-            edges: HashMap::new(),
-        }
-    }
+    use crate::testing::*;
 
     fn example_graph() -> Graph {
         let mut g = graph_builder();
@@ -155,6 +147,8 @@ mod tests {
 
     #[test]
     fn topo_sort_test() {
+        init_test();
+
         fn case(description: &str,
             steps: impl Fn(&mut GraphBuilder), expected_result: Result<Vec<u32>, Error>) {
             let mut g = graph_builder();
@@ -191,6 +185,12 @@ mod tests {
             g.path(&[0, 3, 4]);
             g.path(&[0, 5, 6]);
         }, Ok(vec![0, 5, 6, 3, 4, 1, 2]));
+
+        case("lots of small loops", |g| {
+            g.path(&[1, 2, 3, 4, 5]);
+            g.path(&[5, 4, 3, 2, 1]);
+        }, Err(Error::FoundCycle));
     }
+
 
 }

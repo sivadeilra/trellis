@@ -1,6 +1,7 @@
 use crate::error::Error;
 use crate::ramp_table::RampTable;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LayerMap {
     /// The number of layers in the layer map. This is always >= 1.
     pub num_layers: usize,
@@ -14,11 +15,13 @@ pub struct LayerMap {
 /// ensures that all edges point "down". That is, if the graph contains an edge `f -> t`
 /// then `v_layer[f] > v_layer[t]`.
 pub fn create_layer_map(graph: &RampTable<u32>) -> Result<LayerMap, Error> {
-    let topo_order = crate::topo_sort::topo_sort(graph)?;
+    println!("create_layer_map: calling topo_sort");
+    let topo_order = crate::topo_sort::topo_sort_reverse(graph)?;
+    println!("create_layer_map: topo_sort is done");
     let nv = graph.num_keys();
 
     // Create the layer map and assign every vertex to layer 0.
-    let mut v_layer: Vec<u32> = Vec::with_capacity(nv);
+    let mut v_layer: Vec<u32> = vec![0; nv];
     for &from in topo_order.iter() {
         let to_list = graph.entry_values(from as usize);
         let from_layer: u32 =
@@ -28,7 +31,7 @@ pub fn create_layer_map(graph: &RampTable<u32>) -> Result<LayerMap, Error> {
                 // No inputs; this is a source. Assign it to layer zero.
                 0
             };
-        v_layer.push(from_layer);
+        v_layer[from as usize] = from_layer;
     }
 
     // Find the max layer that has been assigned.
@@ -37,6 +40,51 @@ pub fn create_layer_map(graph: &RampTable<u32>) -> Result<LayerMap, Error> {
         v_layer,
         num_layers,
     })
+}
+
+#[cfg(test)] mod tests {
+    use super::*;
+    use crate::testing::*;
+
+    #[test]
+    fn create_layer_map_test() {
+        fn case(description: &str, graph: &Graph) {
+            let layer_map = create_layer_map(graph);
+            println!("--- {}\ngraph: {:#?}\nlayer_map: {:#?}\n",
+                description, graph, layer_map);
+        }
+
+        case("empty", &Graph::new());
+
+        case("self-edge", &graph_from_paths(&[
+            &[0, 0]
+        ]));
+
+        case("linear path", &graph_from_paths(&[
+            &[1, 2, 3, 4, 5]
+        ]));
+
+        case("two linear paths, not connected", &graph_from_paths(&[
+            &[10, 11, 12, 13, 14],
+            &[20, 21, 22, 23, 24],
+        ]));
+
+        case("two linear paths, connected at source", &graph_from_paths(&[
+            &[1, 10, 11, 12],
+            &[1, 20, 21, 22],
+        ]));
+
+        case("two linear paths, connected at sink", &graph_from_paths(&[
+            &[10, 11, 12, 1],
+            &[20, 21, 22, 1],
+        ]));
+
+        case("two linear paths, connected at middle", &graph_from_paths(&[
+            &[10, 11, 1, 12, 13],
+            &[20, 21, 1, 22, 23],
+        ]));
+    }
+
 }
 
 /// Given a graph, constructs a new graph that contains "virtual" edges and nodes,
