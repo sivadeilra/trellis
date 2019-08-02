@@ -2,6 +2,7 @@
 use crate::V;
 use crate::graph::Graph;
 use crate::ramp_table::RampTable;
+use crate::vec_option::VecOption;
 use log::debug;
 
 const NO_GRAPH: u32 = !0u32;
@@ -135,15 +136,17 @@ pub fn find_disjoint_subgraphs(graph: &Graph) -> DisjointSubgraphs
     let mut output_pos = output_index.clone();
 
     // Build the values table
-    let mut output_values: Vec<u32> = vec![!0u32; sum as usize];
+    let mut output_values: VecOption<u32> = VecOption::new_repeat_none(sum as usize);
 
     for (v, &graph) in v_graph.iter().enumerate() {
         if graph != NO_GRAPH {
             let pos_ptr = &mut output_pos[graph as usize];
-            output_values[*pos_ptr as usize] = v as u32;
+            output_values.set_some(*pos_ptr as usize, v as u32);
             *pos_ptr += 1;
         }
     }
+    let output_values = output_values.some_into_vec();
+    assert_eq!(output_values.len(), sum as usize);
 
     // Check that all of our positions ended up where we expected them to.
     for i in 0..num_subgraphs {
