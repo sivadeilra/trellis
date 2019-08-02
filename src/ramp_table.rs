@@ -1,12 +1,13 @@
 use core::ops::Range;
 
-pub struct RampTable<V> {
+#[derive(Clone, Eq, PartialEq)]
+pub struct RampTable<T> {
     /// contains the index into values[] where each entry starts
     pub index: Vec<u32>,
-    pub values: Vec<V>,
+    pub values: Vec<T>,
 }
 
-impl<V> RampTable<V> {
+impl<T> RampTable<T> {
     pub fn new() -> Self {
         Self {
             index: vec![0],
@@ -14,7 +15,7 @@ impl<V> RampTable<V> {
         }
     }
 
-    pub fn push_value(&mut self, value: V) {
+    pub fn push_value(&mut self, value: T) {
         self.values.push(value);
     }
 
@@ -29,14 +30,14 @@ impl<V> RampTable<V> {
     }
 
     // Iterates slices, one slice for each entry.
-    pub fn iter(&self) -> impl Iterator<Item = &[V]> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = &[T]> + '_ {
         self.index
             .windows(2)
             .map(move |w| &self.values[w[0] as usize..w[1] as usize])
     }
 
     // Iterates mutable slices, one slice for each entry.
-    pub fn iter_mut(&mut self) -> IterMut<'_, V> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         let mut index_iter = self.index.iter();
         let last_index = (*index_iter.next().unwrap()) as usize;
         IterMut {
@@ -50,40 +51,40 @@ impl<V> RampTable<V> {
         self.index[index] as usize..self.index[index + 1] as usize
     }
 
-    pub fn entry_values(&self, index: usize) -> &[V] {
+    pub fn entry_values(&self, index: usize) -> &[T] {
         &self.values[self.entry_values_range(index)]
     }
 
-    pub fn entry_values_mut(&mut self, index: usize) -> &mut [V] {
+    pub fn entry_values_mut(&mut self, index: usize) -> &mut [T] {
         let range = self.entry_values_range(index);
         &mut self.values[range]
     }
 
-    pub fn all_values(&self) -> &[V] {
+    pub fn all_values(&self) -> &[T] {
         &self.values
     }
 
-    pub fn all_values_mut(&mut self) -> &mut [V] {
+    pub fn all_values_mut(&mut self) -> &mut [T] {
         &mut self.values
     }
 
-    pub fn iter_pairs(&self) -> impl Iterator<Item = (usize, &'_ V)> {
+    pub fn iter_pairs(&self) -> impl Iterator<Item = (usize, &'_ T)> {
         self.iter()
             .enumerate()
             .map(move |(i, values)| values.iter().map(move |v| (i, v)))
             .flatten()
     }
 
-    pub fn iter_pairs_manual(&self) -> impl Iterator<Item = (usize, &'_ V)> {
-        struct Pairs<'a, V> {
-            value_iter: core::slice::Iter<'a, V>,
+    pub fn iter_pairs_manual(&self) -> impl Iterator<Item = (usize, &'_ T)> {
+        struct Pairs<'a, T> {
+            value_iter: core::slice::Iter<'a, T>,
             index_iter: core::slice::Iter<'a, u32>,
             current_key: usize,
             current_index: usize,
             num_values: usize,
         }
-        impl<'a, V> Iterator for Pairs<'a, V> {
-            type Item = (usize, &'a V);
+        impl<'a, T> Iterator for Pairs<'a, T> {
+            type Item = (usize, &'a T);
             fn next(&mut self) -> Option<Self::Item> {
                 if let Some(value) = self.value_iter.next() {
                     // What key is this value for?
@@ -121,36 +122,36 @@ impl<V> RampTable<V> {
         self.values.len()
     }
 
-    pub fn push_entry_copy(&mut self, values: &[V])
+    pub fn push_entry_copy(&mut self, values: &[T])
     where
-        V: Copy,
+        T: Copy,
     {
         self.values.extend(values.iter());
         self.finish_key();
     }
 
-    pub fn push_entry_clone(&mut self, values: &[V])
+    pub fn push_entry_clone(&mut self, values: &[T])
     where
-        V: Clone,
+        T: Clone,
     {
         self.values.extend(values.iter().cloned());
         self.finish_key();
     }
 
-    pub fn push_entry_extend<I: Iterator<Item = V>>(&mut self, values: I) {
+    pub fn push_entry_extend<I: Iterator<Item = T>>(&mut self, values: I) {
         self.values.extend(values);
         self.finish_key();
     }
 }
 
-pub struct IterMut<'a, V> {
+pub struct IterMut<'a, T> {
     last_index: usize,
     index_iter: core::slice::Iter<'a, u32>,
-    values: &'a mut [V],
+    values: &'a mut [T],
 }
 
-impl<'a, V> Iterator for IterMut<'a, V> {
-    type Item = &'a mut [V];
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut [T];
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(&index) = self.index_iter.next() {
             let values = std::mem::replace(&mut self.values, &mut []);

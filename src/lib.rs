@@ -1,10 +1,13 @@
 use crate::ramp_table::RampTable;
 use std::u16;
 
+pub mod disjoint;
+pub mod graph;
 pub mod error;
 pub mod layering;
 pub mod ramp_table;
 pub mod topo_sort;
+pub mod vec_option;
 
 #[cfg(test)]
 mod testing;
@@ -164,13 +167,3 @@ pub fn traverse_depth_first_preorder(
         stack: vec![graph.entry_values(start as usize).iter()],
     }
 }
-
-pub fn assert_graph_is_well_formed(graph: &RampTable<u32>) {
-    let nv = graph.num_keys();
-    for (i, edges) in graph.iter().enumerate() {
-        for &to in edges.iter() {
-            assert!(to < nv as u32, "all vertices should be in bounds");
-        }
-    }
-}
-

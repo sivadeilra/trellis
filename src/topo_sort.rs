@@ -1,11 +1,27 @@
 use crate::error::Error;
-use crate::ramp_table::RampTable;
+use crate::graph::Graph;
+use crate::V;
 use log::debug;
 
 /// Reads an edge list and produces a topological sort of the graph.
-pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
+/// 
+/// On success, the output vector contains a list of vertices, in order from sinks
+/// to sources. That is, for any `i` and `j` indices in the returned order `order`,
+/// if `i < j` then there are no paths from vertex `order[i]` to `order[j]`.
+/// The `topo_sort` function returns the opposite order (sources to sinks).
+/// 
+/// It is legal for the input to contain disjoint subgraphs. If the input does contain
+/// more than one disjoint subgraph, then there are no guarantees about the order of
+/// the returned vertex list with respect to these disjoint subgraphs. That is, if the
+/// input contains two disjoint subgraphs G1 and G2, then the output vertex list may
+/// contain vertexes drawn from G1, then G2, then G1 again, then G2 again, etc. They
+/// are not partitioned.
+/// 
+/// It is legal for the input to contain degenerate vertices, meaning vertices that have
+/// no edges (in-degree = 0 and out-degree = 0). The output will _not_ contain these vertices.
+pub fn topo_sort_reverse(graph: &Graph) -> Result<Vec<u32>, Error> {
     debug!("topo_sort");
-    let nv = graph.num_keys();
+    let nv = graph.num_verts();
 
     debug!("nv = {}", nv);
 
@@ -15,11 +31,11 @@ pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
 
     // We build the output of the function in this vector. It contains a
     // permutation of vertexes.
-    let mut topo_order: Vec<u32> = Vec::with_capacity(graph.num_keys());
+    let mut topo_order: Vec<V> = Vec::with_capacity(graph.num_verts());
 
     // Work stack contains the set of verts and the remaining forward edges for each
     // vert that we need to traverse.
-    let mut work_stack: Vec<(u32, core::slice::Iter<u32>)> = Vec::new();
+    let mut work_stack: Vec<(V, core::slice::Iter<V>)> = Vec::new();
 
     // verts currently being examined
     let mut in_work_set: Vec<bool> = vec![false; nv];
@@ -27,11 +43,11 @@ pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
     // Iterate through vertices. For each vertex, do depth-first forward search.
     // When a sink is found, mark the path to it as "done".
     // If we find a vertex that is in the "workset", then we found a loop.
-    for (source, source_tos) in graph.iter().enumerate() {
-        assert!(!in_work_set[source]);
+    for (source, source_tos) in graph.iter_from_edges() {
+        assert!(!in_work_set[source as usize]);
         assert!(work_stack.is_empty());
 
-        if visited[source] {
+        if visited[source as usize] {
             debug!("v{} already visited", source);
             continue;
         }
@@ -77,7 +93,10 @@ pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
         loop {
             assert!(in_work_set[v as usize]);
             for (wv, _) in work_stack.iter() {
-                assert!(in_work_set[*wv as usize], "verts in work_stack should also be set in in_work_set");
+                assert!(
+                    in_work_set[*wv as usize],
+                    "verts in work_stack should also be set in in_work_set"
+                );
             }
             if let Some(&next_v) = v_edges.next() {
                 if in_work_set[next_v as usize] {
@@ -87,14 +106,14 @@ pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
                 }
                 if visited[next_v as usize] {
                     debug!("... v{} --> v{}, already seen v{}", v, next_v, next_v);
-                    // do nothing, because we have already checked subgraph at next_v
+                // do nothing, because we have already checked subgraph at next_v
                 } else {
                     // We need to descend into this forward edge.
                     debug!("... v{} --> v{}, descending", v, next_v);
                     work_stack.push((v, v_edges));
                     in_work_set[next_v as usize] = true;
                     v = next_v;
-                    v_edges = graph.entry_values(next_v as usize).iter();
+                    v_edges = graph.edges_from(next_v).iter();
                 }
             } else {
                 // We're done with the subgraph under v.
@@ -118,17 +137,20 @@ pub fn topo_sort_reverse(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
         }
     }
 
-    assert!(in_work_set.iter().all(|v| !*v), "in_work_set should all be false");
+    assert!(
+        in_work_set.iter().all(|v| !*v),
+        "in_work_set should all be false"
+    );
     assert!(work_stack.is_empty());
 
     for &v in topo_order.iter() {
-        assert!(v < graph.num_keys() as u32);
+        assert!(v < graph.num_verts() as u32);
     }
 
     Ok(topo_order)
 }
 
-pub fn topo_sort(graph: &RampTable<u32>) -> Result<Vec<u32>, Error> {
+pub fn topo_sort(graph: &Graph) -> Result<Vec<u32>, Error> {
     let mut order = topo_sort_reverse(graph)?;
     order.reverse();
     Ok(order)
@@ -139,58 +161,86 @@ mod tests {
     use super::*;
     use crate::testing::*;
 
-    fn example_graph() -> Graph {
-        let mut g = graph_builder();
-        g.from(0).to(1).to(5);
-        g.build()
-    }
-
     #[test]
     fn topo_sort_test() {
         init_test();
 
-        fn case(description: &str,
-            steps: impl Fn(&mut GraphBuilder), expected_result: Result<Vec<u32>, Error>) {
+        fn case(
+            description: &str,
+            steps: impl Fn(&mut GraphBuilder),
+            expected_result: Result<Vec<u32>, Error>,
+        ) {
             let mut g = graph_builder();
             steps(&mut g);
             let graph = g.build();
             let result = topo_sort(&graph);
-            assert_eq!(result, expected_result, "(actual : expected) {:?}, graph: {:#?}", description, graph);
+            assert_eq!(
+                result, expected_result,
+                "(actual : expected) {:?}, graph: {:#?}",
+                description, graph
+            );
         }
 
         case("empty graph", |_| {}, Ok(vec![]));
 
-        case("self-edge", |g| {
-            g.from(0).to(0);
-        }, Err(Error::FoundCycle));
+        case(
+            "self-edge",
+            |g| {
+                g.from(0).to(0);
+            },
+            Err(Error::FoundCycle),
+        );
 
-        case("linear path", |g| {
-            g.path(&[1, 2, 3, 4, 5]);
-        }, Ok(vec![1, 2, 3, 4, 5]));
+        case(
+            "linear path",
+            |g| {
+                g.path(&[1, 2, 3, 4, 5]);
+            },
+            Ok(vec![1, 2, 3, 4, 5]),
+        );
 
-        case("linear path reversed", |g| {
-            g.path(&[5, 4, 3, 2, 1]);
-        }, Ok(vec![5, 4, 3, 2, 1]));
+        case(
+            "linear path reversed",
+            |g| {
+                g.path(&[5, 4, 3, 2, 1]);
+            },
+            Ok(vec![5, 4, 3, 2, 1]),
+        );
 
-        case("simple loop", |g| {
-            g.from(0).to(1).to(2).to(0);
-        }, Err(Error::FoundCycle));
+        case(
+            "simple loop",
+            |g| {
+                g.from(0).to(1).to(2).to(0);
+            },
+            Err(Error::FoundCycle),
+        );
 
-        case("single edge", |g| {
-            g.from(0).to(1);
-        }, Ok(vec![0, 1]));
+        case(
+            "single edge",
+            |g| {
+                g.from(0).to(1);
+            },
+            Ok(vec![0, 1]),
+        );
 
-        case("tree", |g| {
-            g.path(&[0, 1, 2]);
-            g.path(&[0, 3, 4]);
-            g.path(&[0, 5, 6]);
-        }, Ok(vec![0, 5, 6, 3, 4, 1, 2]));
+        case(
+            "tree",
+            |g| {
+                g.path(&[0, 1, 2]);
+                g.path(&[0, 3, 4]);
+                g.path(&[0, 5, 6]);
+            },
+            Ok(vec![0, 5, 6, 3, 4, 1, 2]),
+        );
 
-        case("lots of small loops", |g| {
-            g.path(&[1, 2, 3, 4, 5]);
-            g.path(&[5, 4, 3, 2, 1]);
-        }, Err(Error::FoundCycle));
+        case(
+            "lots of small loops",
+            |g| {
+                g.path(&[1, 2, 3, 4, 5]);
+                g.path(&[5, 4, 3, 2, 1]);
+            },
+            Err(Error::FoundCycle),
+        );
     }
-
 
 }

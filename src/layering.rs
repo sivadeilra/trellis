@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::ramp_table::RampTable;
+use crate::graph::Graph;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LayerMap {
@@ -14,16 +14,14 @@ pub struct LayerMap {
 /// Scans the graph and assigns every vertex to a layer. The layer assignment
 /// ensures that all edges point "down". That is, if the graph contains an edge `f -> t`
 /// then `v_layer[f] > v_layer[t]`.
-pub fn create_layer_map(graph: &RampTable<u32>) -> Result<LayerMap, Error> {
-    println!("create_layer_map: calling topo_sort");
+pub fn create_layer_map(graph: &Graph) -> Result<LayerMap, Error> {
     let topo_order = crate::topo_sort::topo_sort_reverse(graph)?;
-    println!("create_layer_map: topo_sort is done");
-    let nv = graph.num_keys();
+    let nv = graph.num_verts();
 
     // Create the layer map and assign every vertex to layer 0.
     let mut v_layer: Vec<u32> = vec![0; nv];
     for &from in topo_order.iter() {
-        let to_list = graph.entry_values(from as usize);
+        let to_list = graph.edges_from(from);
         let from_layer: u32 =
             if let Some(layer_max) = to_list.iter().map(|&v| v_layer[v as usize]).max() {
                 layer_max + 1
@@ -42,7 +40,8 @@ pub fn create_layer_map(graph: &RampTable<u32>) -> Result<LayerMap, Error> {
     })
 }
 
-#[cfg(test)] mod tests {
+#[cfg(test)]
+mod tests {
     use super::*;
     use crate::testing::*;
 
@@ -50,41 +49,38 @@ pub fn create_layer_map(graph: &RampTable<u32>) -> Result<LayerMap, Error> {
     fn create_layer_map_test() {
         fn case(description: &str, graph: &Graph) {
             let layer_map = create_layer_map(graph);
-            println!("--- {}\ngraph: {:#?}\nlayer_map: {:#?}\n",
-                description, graph, layer_map);
+            println!(
+                "--- {}\ngraph: {:#?}\nlayer_map: {:#?}\n",
+                description, graph, layer_map
+            );
         }
 
         case("empty", &Graph::new());
 
-        case("self-edge", &graph_from_paths(&[
-            &[0, 0]
-        ]));
+        case("self-edge", &graph_from_paths(&[&[0, 0]]));
 
-        case("linear path", &graph_from_paths(&[
-            &[1, 2, 3, 4, 5]
-        ]));
+        case("linear path", &graph_from_paths(&[&[1, 2, 3, 4, 5]]));
 
-        case("two linear paths, not connected", &graph_from_paths(&[
-            &[10, 11, 12, 13, 14],
-            &[20, 21, 22, 23, 24],
-        ]));
+        case(
+            "two linear paths, not connected",
+            &graph_from_paths(&[&[10, 11, 12, 13, 14], &[20, 21, 22, 23, 24]]),
+        );
 
-        case("two linear paths, connected at source", &graph_from_paths(&[
-            &[1, 10, 11, 12],
-            &[1, 20, 21, 22],
-        ]));
+        case(
+            "two linear paths, connected at source",
+            &graph_from_paths(&[&[1, 10, 11, 12], &[1, 20, 21, 22]]),
+        );
 
-        case("two linear paths, connected at sink", &graph_from_paths(&[
-            &[10, 11, 12, 1],
-            &[20, 21, 22, 1],
-        ]));
+        case(
+            "two linear paths, connected at sink",
+            &graph_from_paths(&[&[10, 11, 12, 1], &[20, 21, 22, 1]]),
+        );
 
-        case("two linear paths, connected at middle", &graph_from_paths(&[
-            &[10, 11, 1, 12, 13],
-            &[20, 21, 1, 22, 23],
-        ]));
+        case(
+            "two linear paths, connected at middle",
+            &graph_from_paths(&[&[10, 11, 1, 12, 13], &[20, 21, 1, 22, 23]]),
+        );
     }
-
 }
 
 /// Given a graph, constructs a new graph that contains "virtual" edges and nodes,
@@ -100,19 +96,16 @@ pub fn create_layer_map(graph: &RampTable<u32>) -> Result<LayerMap, Error> {
 /// be created for each vertex. This is used to construct a RampTable. Placing the
 /// edges is relatively easy.
 ///
-pub fn create_proper_graph(graph: &RampTable<u32>, layers: &LayerMap) -> RampTable<u32> {
-    let nv = graph.num_keys();
-
+pub fn create_proper_graph(graph: &Graph, layers: &LayerMap) -> Graph {
+    let nv = graph.num_verts();
     let v_layer = &layers.v_layer;
-
     let mut next_virt_v: u32 = nv as u32;
 
     // Scan the input graph and determine how many edges the proper graph
     // will contain. This allows us to allocate the output graph buffers
     // at their final size, avoiding reallocations.
     let proper_num_virt_v: usize = graph
-        .iter()
-        .enumerate()
+        .iter_from_edges()
         .map(|(from, to_list)| {
             let from_layer = v_layer[from as usize];
             to_list
@@ -126,8 +119,8 @@ pub fn create_proper_graph(graph: &RampTable<u32>, layers: &LayerMap) -> RampTab
         })
         .sum::<u32>() as usize;
 
-    let expected_num_vert_proper = graph.num_keys() + proper_num_virt_v;
-    let expected_num_edge_proper = graph.num_values() + proper_num_virt_v;
+    let expected_num_vert_proper = graph.num_verts() + proper_num_virt_v;
+    let expected_num_edge_proper = graph.num_edges() + proper_num_virt_v;
 
     let mut proper_from: Vec<u32> = Vec::with_capacity(expected_num_edge_proper);
     let mut proper_to: Vec<u32> = Vec::with_capacity(expected_num_edge_proper);
@@ -137,7 +130,7 @@ pub fn create_proper_graph(graph: &RampTable<u32>, layers: &LayerMap) -> RampTab
         proper_to.push(t);
     };
 
-    for (from, &to) in graph.iter_pairs() {
+    for (from, to) in graph.iter_edges_flattened() {
         let from = from as u32;
         let from_layer = layers.v_layer[from as usize];
         let to_layer = layers.v_layer[to as usize];

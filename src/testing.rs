@@ -1,58 +1,65 @@
+use crate::V;
+use crate::graph::Graph;
 use std::collections::HashMap;
-use crate::ramp_table::RampTable;
 
 pub fn init_test() {
     drop(env_logger::try_init());
 }
 
-pub type Graph = RampTable<u32>;
-
 pub struct GraphBuilder {
     // from -> to
-    edges: HashMap<u32, Vec<u32>>,
+    edges: HashMap<V, Vec<V>>,
 }
 impl GraphBuilder {
-    pub fn edge(&mut self, from: u32, to: u32) {
+    pub fn edge(&mut self, from: V, to: V) {
         self.edges.entry(from).or_default().push(to);
     }
-    pub fn from(&mut self, from: u32) -> GraphBuilderFrom<'_> {
+    pub fn from(&mut self, from: V) -> GraphBuilderFrom<'_> {
         GraphBuilderFrom {
             builder: self,
             from,
         }
     }
-    pub fn path(&mut self, verts: &[u32]) {
+    pub fn path(&mut self, verts: &[V]) {
         for w in verts.windows(2) {
             self.edge(w[0], w[1]);
         }
     }
     pub fn build(self) -> Graph {
-        let mut sorted = self.edges.iter().collect::<Vec<(&u32, &Vec<u32>)>>();
+        let mut sorted = self.edges.iter().collect::<Vec<(&V, &Vec<V>)>>();
         sorted.sort_by_key(|e| e.0);
         let mut graph = Graph::new();
         for (&from, to_list) in sorted.iter() {
             // Fill in any empty 'from' entries.
-            while graph.num_keys() < from as usize {
-                graph.finish_key();
+            while graph.num_verts() < from as usize {
+                graph.finish_from();
             }
-            graph.push_entry_copy(to_list);
+            for &to in to_list.iter() {
+                graph.push_to(to);
+            }
+            graph.finish_from();
         }
 
-        let num_verts = self.edges.iter().map(|(&from, to_list)| {
-            (from + 1).max(to_list.iter().map(|&v| v + 1).max().unwrap_or(0))
-        }).max().unwrap_or(0);
+        let num_verts = self
+            .edges
+            .iter()
+            .map(|(&from, to_list)| {
+                (from + 1).max(to_list.iter().map(|&v| v + 1).max().unwrap_or(0))
+            })
+            .max()
+            .unwrap_or(0);
 
-        while graph.num_keys() < num_verts as usize {
-            graph.finish_key();
+        while graph.num_verts() < num_verts as usize {
+            graph.finish_from();
         }
 
-        crate::assert_graph_is_well_formed(&graph);
+        crate::graph::assert_graph_is_well_formed(&graph);
         graph
     }
 }
 
 pub struct GraphBuilderFrom<'a> {
-    from: u32,
+    from: V,
     builder: &'a mut GraphBuilder,
 }
 
@@ -72,12 +79,10 @@ pub fn graph_builder() -> GraphBuilder {
     }
 }
 
-pub fn graph_from_paths(paths: &[&[u32]]) -> Graph {
+pub fn graph_from_paths(paths: &[&[V]]) -> Graph {
     let mut b = graph_builder();
     for &path in paths.iter() {
         b.path(path);
     }
     b.build()
 }
-
-
