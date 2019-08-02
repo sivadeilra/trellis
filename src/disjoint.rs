@@ -4,14 +4,15 @@ use crate::graph::Graph;
 use crate::ramp_table::RampTable;
 use log::debug;
 
-pub fn find_disjoint_subgraphs(graph: &Graph) // -> DisjointSubgraphs 
+const NO_GRAPH: u32 = !0u32;
+
+pub fn find_disjoint_subgraphs(graph: &Graph) -> DisjointSubgraphs 
 {
     // First we traverse all edges of the graph and create the graph_alias and v_graph tables.
     // This creates a set of "possible subgraphs". After this step, v_graph will contain one
     // entry for each "possible subgraph" and v_graph will contain a mapping from vertex
     // to a possible-subgraph-number.
     debug!("step 1: assigning verts to possibly-disjoint-subgraphs");
-    const NO_GRAPH: u32 = !0u32;
     let mut v_graph: Vec<u32> = vec![NO_GRAPH; graph.num_verts()];
     let mut graph_alias: Vec<u32> = vec![];
     for (from, to) in graph.iter_edges_flattened() {
@@ -110,9 +111,60 @@ pub fn find_disjoint_subgraphs(graph: &Graph) // -> DisjointSubgraphs
     debug!("step 5: building ramp table");
 
 
-    debug!("done, but not finished.");
-    // unimplemented!();
+    // Build 'verts_per_subgraph', which counts the number of verts in each subgraph.
+    let mut verts_per_subgraph: Vec<u32> = vec![0; num_subgraphs as usize];
+    for &value in v_graph.iter() {
+        if value != NO_GRAPH {
+            verts_per_subgraph[value as usize] += 1;
+        }
+    }
+
+    // Build the index table.
+    let mut output_index: Vec<u32> = Vec::with_capacity(num_subgraphs as usize + 1);
+    let mut sum: u32 = 0;
+    for &value in verts_per_subgraph.iter() {
+        output_index.push(sum);
+        sum += value;
+    }
+    output_index.push(sum);
+    // <-- sum is now the number of verts in the output. This may be less than the
+    // number of verts in the input, if there are isolated verts.
+
+    // Clone 'output_index' as 'output_pos', so that we can know where in output_values
+    // to write verts.
+    let mut output_pos = output_index.clone();
+
+    // Build the values table
+    let mut output_values: Vec<u32> = vec![!0u32; sum as usize];
+
+    for (v, &graph) in v_graph.iter().enumerate() {
+        if graph != NO_GRAPH {
+            let pos_ptr = &mut output_pos[graph as usize];
+            output_values[*pos_ptr as usize] = v as u32;
+            *pos_ptr += 1;
+        }
+    }
+
+    // Check that all of our positions ended up where we expected them to.
+    for i in 0..num_subgraphs {
+        assert!(output_pos[i] == output_index[i + 1]);
+    }
+
+    assert!(output_values.iter().all(|v| *v != !0u32));
+
+    let subgraphs = RampTable {
+            index: output_index,
+            values: output_values
+        };
+
+    println!("Disjoint subgraphs: {:#?}", subgraphs);
+
+    DisjointSubgraphs {
+        subgraphs
+    }
 }
+
+
 
 #[cfg(test)]
 mod tests {
