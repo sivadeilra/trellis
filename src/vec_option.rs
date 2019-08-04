@@ -53,6 +53,76 @@ impl<T: Clone> Clone for VecOption<T> {
     }
 }
 
+impl<T: PartialEq<T>> PartialEq<VecOption<T>> for VecOption<T> {
+    fn eq(&self, rhs: &VecOption<T>) -> bool {
+        if self.len() != rhs.len() {
+            return false;
+        }
+        for (a, b) in self.iter().zip(rhs.iter()) {
+            if a != b {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+impl<T: Eq> Eq for VecOption<T> {
+}
+
+use core::cmp::Ordering;
+
+impl<T: PartialOrd<T>> PartialOrd<VecOption<T>> for VecOption<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self.len().cmp(&other.len()) {
+            Ordering::Equal => {
+                for (a, b) in self.iter().zip(other.iter()) {
+                    match a.partial_cmp(&b) {
+                        Some(Ordering::Equal) => (),
+                        Some(order) => return Some(order),
+                        None => return None,
+                    }
+                }
+                Some(Ordering::Equal)
+            }
+            order => Some(order)
+        }
+    }
+}
+
+impl<T: Ord> Ord for VecOption<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.len().cmp(&other.len()) {
+            Ordering::Equal => {
+                for (a, b) in self.iter().zip(other.iter()) {
+                    match a.cmp(&b) {
+                        Ordering::Equal => (),
+                        order => return order,
+                    }
+                }
+                Ordering::Equal
+            }
+            order => order
+        }
+    }
+}
+
+use std::hash::{Hash, Hasher};
+impl<T: Hash> Hash for VecOption<T> {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        hasher.write_usize(self.len());
+        for item in self.iter() {
+            match item {
+                Some(value) => {
+                    hasher.write_u8(1);
+                    value.hash(hasher);
+                }
+                None => hasher.write_u8(0),
+            }
+        }
+    }
+}
+
 #[test]
 fn basic_test() {
     let mut v: VecOption<i32> = VecOption::new();
@@ -61,10 +131,21 @@ fn basic_test() {
 }
 
 impl<T> VecOption<T> {
+    /// Constructs a new, empty `VecOption<T>`.
+    /// 
+    /// The vector will not allocate until items are pushed onto it.
     pub fn new() -> Self {
         Self {
             vec: Vec::new(),
             present: BitVec::new()
+        }
+    }
+
+    pub fn extend<I: Iterator<Item = Option<T>>>(&mut self, iter: I) {
+        let (lower, _upper) = iter.size_hint();
+        self.reserve(lower);
+        for item in iter {
+            self.push(item);
         }
     }
     
@@ -109,6 +190,7 @@ impl<T> VecOption<T> {
         }
     }
 
+    /// Allocates a new `VecOption<T>` with the given capacity. The collection is empty.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             vec: Vec::with_capacity(capacity),
@@ -126,6 +208,42 @@ impl<T> VecOption<T> {
     /// A collection that contains only `None` values is not empty.
     pub fn is_empty(&self) -> bool {
         self.vec.is_empty()
+    }
+
+    pub fn swap(&mut self, a: usize, b: usize) {
+        assert!(a < self.len());
+        assert!(b < self.len());
+        if a == b {
+            return;
+        }
+        let value_a = self.replace_none(a);
+        let value_b = self.replace(b, value_a);
+        self.replace(a, value_b);
+    }
+
+    pub fn drain<R: std::ops::RangeBounds<usize>>(&mut self, range: R) -> Drain<T> {
+        let range = self.get_bounds(range);
+        Drain {
+            vec: self,
+            range: range.clone(),
+            next: range.start
+        }
+    }
+
+    fn get_bounds<R: std::ops::RangeBounds<usize>>(&self, range: R) -> Range<usize> {
+        let start = match range.start_bound() {
+            std::ops::Bound::Unbounded => 0,
+            std::ops::Bound::Included(&start) => start,
+            std::ops::Bound::Excluded(&start) => start + 1,
+        };
+        let end = match range.end_bound() {
+            std::ops::Bound::Unbounded => self.len(),
+            std::ops::Bound::Included(&end) => end + 1,
+            std::ops::Bound::Excluded(&end) => end
+        };
+        assert!(start <= end);
+        assert!(end <= self.len());
+        start..end
     }
 
     /// Finds all of the `Some` values within the `VecOption<T>` and moves them so that they are
@@ -207,6 +325,18 @@ impl<T> VecOption<T> {
         vec
     }
 
+    /// Gets a reference to a item, by index.
+    /// The index is required be valid (less than `len()`);
+    /// if the index is out of bounds then this method will panic.
+    /// 
+    /// ```
+    /// # use trellis::vec_option::VecOption;
+    /// let mut v = VecOption::new();
+    /// v.push(Some(42));
+    /// v.push(None);
+    /// assert_eq!(v.get_ref(0), Some(&42));
+    /// assert_eq!(v.get_ref(1), None);
+    /// ```
     pub fn get_ref(&mut self, index: usize) -> Option<&T> {
         if self.present[index] {
             Some(unsafe { &*self.vec.as_ptr().add(index) })
@@ -215,6 +345,19 @@ impl<T> VecOption<T> {
         }
     }
 
+    /// Gets a mutable reference to a item, by index.
+    /// The index is required be valid (less than `len()`);
+    /// if the index is out of bounds then this method will panic.
+    /// 
+    /// ```
+    /// # use trellis::vec_option::VecOption;
+    /// let mut v = VecOption::new();
+    /// v.push(Some(42));
+    /// v.push(None);
+    /// *v.get_mut(0).unwrap() = 333;
+    /// assert_eq!(v.get_ref(0), Some(&333));
+    /// assert_eq!(v.get_ref(1), None);
+    /// ```
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         if self.present[index] {
             Some(unsafe { &mut *self.vec.as_mut_ptr().add(index) })
@@ -223,10 +366,30 @@ impl<T> VecOption<T> {
         }
     }
 
+    /// Gets a copy of an item, by index.
+    /// 
+    /// ```
+    /// # use trellis::vec_option::VecOption;
+    /// let mut v = VecOption::new();
+    /// v.push(Some(42));
+    /// v.push(None);
+    /// assert_eq!(v.get_copy(0), Some(42));
+    /// assert_eq!(v.get_copy(1), None);
+    /// ```
     pub fn get_copy(&mut self, index: usize) -> Option<T> where T: Copy {
         self.get_ref(index).map(|v| *v)
     }
 
+    /// Gets a clone of an item, by index.
+    /// 
+    /// ```
+    /// # use trellis::vec_option::VecOption;
+    /// let mut v = VecOption::new();
+    /// v.push(Some("Hello!".to_string()));
+    /// v.push(None);
+    /// assert_eq!(v.get_clone(0), Some("Hello!".to_string()));
+    /// assert_eq!(v.get_clone(1), None);
+    /// ```
     pub fn get_clone(&mut self, index: usize) -> Option<T> where T: Clone {
         self.get_ref(index).map(|v| v.clone())
     }
@@ -237,7 +400,7 @@ impl<T> VecOption<T> {
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
-    /// v.push_some(100i32);
+    /// v.push(Some(100));
     /// assert_eq!(v.replace(0, Some(200)), Some(100));
     /// assert_eq!(v.get_copy(0), Some(200));
     /// ```
@@ -251,6 +414,14 @@ impl<T> VecOption<T> {
 
     /// Sets an item in the vector to `Some`, taking `T`.
     /// The existing item is returned.
+    /// 
+    /// ```
+    /// # use trellis::vec_option::VecOption;
+    /// let mut v = VecOption::new();
+    /// v.push(Some(100));
+    /// assert_eq!(v.replace_some(0, 200), Some(100));
+    /// assert_eq!(v.get_copy(0), Some(200));
+    /// ```
     pub fn replace_some(&mut self, index: usize, value: T) -> Option<T> {
         let old_value = if self.present[index] {
             Some(unsafe {
@@ -266,6 +437,14 @@ impl<T> VecOption<T> {
 
     /// Sets an item in the vector to `None`.
     /// The existing item is returned.
+    /// 
+    /// ```
+    /// # use trellis::vec_option::VecOption;
+    /// let mut v = VecOption::new();
+    /// v.push(Some(100));
+    /// assert_eq!(v.replace_none(0), Some(100));
+    /// assert_eq!(v.get_copy(0), None);
+    /// ```
     pub fn replace_none(&mut self, index: usize) -> Option<T> {
         if self.present[index] {
             self.present.set(index, false);
@@ -413,12 +592,26 @@ impl<T> VecOption<T> {
     }
 
     /// Pushes a new `T` value onto the end of the vector, as a `Some` value.
+    /// 
+    /// ```
+    /// # use trellis::vec_option::VecOption;
+    /// let mut v = VecOption::new();
+    /// v.push_some(100);
+    /// assert_eq!(v.get_copy(0), Some(100));
+    /// ```
     pub fn push_some(&mut self, value: T) {
         self.present.push(true);
         self.vec.push(value);
     }
 
     /// Pushes a new `None` value onto the end of the vector.
+    /// 
+    /// ```
+    /// # use trellis::vec_option::VecOption;
+    /// let mut v = VecOption::<i32>::new();
+    /// v.push_none();
+    /// assert_eq!(v.get_copy(0), None);
+    /// ```
     pub fn push_none(&mut self) {
         let len = self.vec.len();
         self.present.push(false);
@@ -467,6 +660,13 @@ impl<T> VecOption<T> {
             }
         }
         None
+    }
+
+    pub fn into_some_iter(self) -> IntoSomeIter<T> {
+        IntoSomeIter {
+            vec: self,
+            next: 0
+        }
     }
 }
 
@@ -578,3 +778,80 @@ impl<T> Iterator for IntoIter<T> {
         }
     }
 }
+
+pub struct Drain<'a, T> {
+    vec: &'a mut VecOption<T>,
+    next: usize,
+    range: Range<usize>,
+}
+impl<'a, T> Iterator for Drain<'a, T> {
+    type Item = Option<T>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next < self.range.end {
+            let index = self.next;
+            self.next += 1;
+            Some(self.vec.replace_none(index))
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, T> Drop for Drain<'a, T> {
+    fn drop(&mut self) {
+        if self.range.start == self.range.end {
+            return;
+        }
+        while self.next < self.range.end {
+            self.vec.replace_none(self.next);
+            self.next += 1;
+        }
+        let new_len = self.vec.len() - (self.range.end - self.range.start);
+        unsafe {
+            core::ptr::copy(
+                self.vec.vec.as_mut_ptr().add(self.range.end),
+                self.vec.vec.as_mut_ptr().add(self.range.start),
+                self.vec.len() - self.range.end
+            );
+            self.vec.vec.set_len(new_len);
+        }
+        bitvec_delete_range(&mut self.vec.present, self.range.clone());
+        assert_eq!(self.vec.present.len(), self.vec.vec.len());
+    }
+}
+
+pub struct DrainSome<'a, T> {
+    vec: &'a mut VecOption<T>,
+    range: Range<usize>
+}
+
+// BitVec does not have a way to delete a range.
+fn bitvec_delete_range(bitvec: &mut BitVec, range: Range<usize>) {
+    let range_len = range.end - range.start;
+    for from in range.end .. bitvec.len() {
+        let bit = bitvec[from];
+        bitvec.set(from - range_len, bit);
+    }
+    bitvec.truncate(bitvec.len() - range_len);
+}
+
+pub struct IntoSomeIter<T> {
+    vec: VecOption<T>,
+    next: usize,
+}
+impl<T> Iterator for IntoSomeIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        loop {
+            if self.next == self.vec.len() {
+                return None;
+            }
+            let opt = self.vec.replace_none(self.next);
+            self.next += 1;
+            if opt.is_some() {
+                return opt;
+            }
+        }
+    }
+}
+
