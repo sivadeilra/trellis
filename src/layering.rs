@@ -16,10 +16,9 @@ pub struct LayerMap {
 /// then `v_layer[f] > v_layer[t]`.
 pub fn create_layer_map(graph: &Graph) -> Result<LayerMap, Error> {
     let topo_order = crate::topo_sort::topo_sort_reverse(graph)?;
-    let nv = graph.num_verts();
 
     // Create the layer map and assign every vertex to layer 0.
-    let mut v_layer: Vec<u32> = vec![0; nv];
+    let mut v_layer: Vec<u32> = vec![0; graph.num_verts()];
     for &from in topo_order.iter() {
         let to_list = graph.edges_from(from);
         let from_layer: u32 =

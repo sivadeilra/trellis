@@ -1,5 +1,5 @@
-use crate::V;
 use crate::graph::Graph;
+use crate::V;
 use std::collections::HashMap;
 
 pub fn init_test() {

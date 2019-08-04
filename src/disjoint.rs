@@ -1,14 +1,12 @@
-
-use crate::V;
 use crate::graph::Graph;
 use crate::ramp_table::RampTable;
 use crate::vec_option::VecOption;
+use crate::V;
 use log::debug;
 
 const NO_GRAPH: u32 = !0u32;
 
-pub fn find_disjoint_subgraphs(graph: &Graph) -> DisjointSubgraphs 
-{
+pub fn find_disjoint_subgraphs(graph: &Graph) -> DisjointSubgraphs {
     // First we traverse all edges of the graph and create the graph_alias and v_graph tables.
     // This creates a set of "possible subgraphs". After this step, v_graph will contain one
     // entry for each "possible subgraph" and v_graph will contain a mapping from vertex
@@ -25,20 +23,39 @@ pub fn find_disjoint_subgraphs(graph: &Graph) -> DisjointSubgraphs
                 graph_alias.push(new_g);
                 v_graph[from as usize] = new_g;
                 v_graph[to as usize] = new_g;
-                debug!("v{} (none) --> v{} (none), assigned to new graph {}", from, to, new_g);
+                debug!(
+                    "v{} (none) --> v{} (none), assigned to new graph {}",
+                    from, to, new_g
+                );
             }
             (NO_GRAPH, g_to) => {
-                debug!("v{from} (none) --> v{to} (in g{g_to}), assigning v{from} to g{g_to}", from=from, to=to, g_to=g_to);
+                debug!(
+                    "v{from} (none) --> v{to} (in g{g_to}), assigning v{from} to g{g_to}",
+                    from = from,
+                    to = to,
+                    g_to = g_to
+                );
                 v_graph[from as usize] = g_to;
             }
             (g_from, NO_GRAPH) => {
-                debug!("v{from} (in g{g_from}) --> v{to} (none), assigning v{to} to g{g_from}", from=from, to=to, g_from=g_from);
+                debug!(
+                    "v{from} (in g{g_from}) --> v{to} (none), assigning v{to} to g{g_from}",
+                    from = from,
+                    to = to,
+                    g_from = g_from
+                );
                 v_graph[to as usize] = g_from;
             }
             (g_from, g_to) => {
                 if g_from == g_to {
                     // already in same graph
-                    debug!("v{from} (in g{g_from}) --> v{to} (in g{g_to}), both in same graph", from=from, to=to, g_from=g_from, g_to=g_to);
+                    debug!(
+                        "v{from} (in g{g_from}) --> v{to} (in g{g_to}), both in same graph",
+                        from = from,
+                        to = to,
+                        g_from = g_from,
+                        g_to = g_to
+                    );
                 } else {
                     // We've found a connection between these two possibly-disjoint graphs.
                     // It might not be the only connection, of course. Remember the connection
@@ -82,7 +99,7 @@ pub fn find_disjoint_subgraphs(graph: &Graph) -> DisjointSubgraphs
             num_subgraphs += 1;
         } else {
             // this is an "alias"
-        }        
+        }
     }
     debug!("number of subgraphs: {}", num_subgraphs);
 
@@ -110,7 +127,6 @@ pub fn find_disjoint_subgraphs(graph: &Graph) -> DisjointSubgraphs
     }
 
     debug!("step 5: building ramp table");
-
 
     // Build 'verts_per_subgraph', which counts the number of verts in each subgraph.
     let mut verts_per_subgraph: Vec<u32> = vec![0; num_subgraphs as usize];
@@ -156,18 +172,14 @@ pub fn find_disjoint_subgraphs(graph: &Graph) -> DisjointSubgraphs
     assert!(output_values.iter().all(|v| *v != !0u32));
 
     let subgraphs = RampTable {
-            index: output_index,
-            values: output_values
-        };
+        index: output_index,
+        values: output_values,
+    };
 
     println!("Disjoint subgraphs: {:#?}", subgraphs);
 
-    DisjointSubgraphs {
-        subgraphs
-    }
+    DisjointSubgraphs { subgraphs }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -184,39 +196,22 @@ mod tests {
             find_disjoint_subgraphs(graph);
         }
 
-        case("empty", 
-            &graph_from_paths(&[]));
+        case("empty", &graph_from_paths(&[]));
 
-        case("simple acyclic",
-            &graph_from_paths(&[
-                &[1, 2, 3, 4, 5],
-            ])
+        case("simple acyclic", &graph_from_paths(&[&[1, 2, 3, 4, 5]]));
+
+        case("backward", &graph_from_paths(&[&[5, 4, 3, 2, 1]]));
+
+        case(
+            "two",
+            &graph_from_paths(&[&[1, 2, 3, 4, 5], &[10, 11, 12, 13, 14]]),
         );
-
-        case("backward",
-            &graph_from_paths(&[
-                &[5, 4, 3, 2, 1],
-            ])
-        );
-
-        case("two",
-            &graph_from_paths(&[
-                &[1, 2, 3, 4, 5],
-                &[10, 11, 12, 13, 14],
-            ])
-        );
-
     }
 
 }
 
-
 pub struct DisjointSubgraphs {
-
     /// Contains a set of G -> [V]. Each key is a subgraph. Each set of values for each key
     /// contains the vertices that are in that subgraph.
     pub subgraphs: RampTable<V>,
-
 }
-
-

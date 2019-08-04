@@ -1,23 +1,23 @@
-use core::ops::Range;
 use bit_vec::BitVec;
+use core::ops::Range;
 
 /// `VecOption` is a collection that is semantically equivalent to `Vec<Option<T>>` but which
 /// uses a different memory representation. This representation can be more efficient
 /// for some algorithms.
-/// 
+///
 /// The representation stores `[T]` in one allocation, similar to `Vec<T>`, and stores a
 /// bitmap which indicates which items are present. This has many advantages:
-/// 
+///
 /// * the bitmap wastes less memory; every bit can be used to store meaningful information,
 ///   rather than using an entire u8 for Option's discriminant (and potentially more for
 ///   alignment padding) for those `T` which cannot rely on specialized representations for
 ///   `Option<T>`.
-/// 
+///
 /// * for contiguous runs of items that are present, a `&[T]` can be safely synthesized.
-/// 
+///
 /// * an existing `Vec<T>` can be converted to `VecOption<T>` without moving or reallocating
 ///   items.
-/// 
+///
 /// * a `VecOption<T>` can be efficiently converted to a `Vec<T>`, by compacting items that
 ///   are present. Compaction can be done without reallocation.
 pub struct VecOption<T> {
@@ -27,10 +27,10 @@ pub struct VecOption<T> {
     /// running drop() on the individual items. We also cannot use any method
     /// of Vec that might actually touch the items or even create a slice over
     /// the items. Doing so would be undefined behavior.
-    /// 
+    ///
     /// For that reason, we restrict our usage of `vec` to only these methods:
     /// len(), push(), pop(), set_len()
-    /// 
+    ///
     vec: Vec<T>,
     present: BitVec,
 }
@@ -42,7 +42,10 @@ impl<T: Clone> Clone for VecOption<T> {
         for (i, item_present) in self.present.iter().enumerate() {
             if item_present {
                 unsafe {
-                    core::ptr::write(clone_vec.as_mut_ptr().add(i), (*self.vec.as_ptr().add(i)).clone());
+                    core::ptr::write(
+                        clone_vec.as_mut_ptr().add(i),
+                        (*self.vec.as_ptr().add(i)).clone(),
+                    );
                 }
             }
         }
@@ -67,8 +70,7 @@ impl<T: PartialEq<T>> PartialEq<VecOption<T>> for VecOption<T> {
     }
 }
 
-impl<T: Eq> Eq for VecOption<T> {
-}
+impl<T: Eq> Eq for VecOption<T> {}
 
 use core::cmp::Ordering;
 
@@ -85,7 +87,7 @@ impl<T: PartialOrd<T>> PartialOrd<VecOption<T>> for VecOption<T> {
                 }
                 Some(Ordering::Equal)
             }
-            order => Some(order)
+            order => Some(order),
         }
     }
 }
@@ -102,7 +104,7 @@ impl<T: Ord> Ord for VecOption<T> {
                 }
                 Ordering::Equal
             }
-            order => order
+            order => order,
         }
     }
 }
@@ -132,12 +134,12 @@ fn basic_test() {
 
 impl<T> VecOption<T> {
     /// Constructs a new, empty `VecOption<T>`.
-    /// 
+    ///
     /// The vector will not allocate until items are pushed onto it.
     pub fn new() -> Self {
         Self {
             vec: Vec::new(),
-            present: BitVec::new()
+            present: BitVec::new(),
         }
     }
 
@@ -148,12 +150,12 @@ impl<T> VecOption<T> {
             self.push(item);
         }
     }
-    
+
     /// Takes ownership of a `Vec<T>` and creates a `VecOption<T>` where every entry is converted
     /// from `T` to `Some(T)`. This function is efficient; `vec` is not modified.
-    /// 
+    ///
     /// Example:
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::from_vec(vec![100, 200]);
@@ -163,18 +165,18 @@ impl<T> VecOption<T> {
         let len = vec.len();
         Self {
             present: BitVec::from_elem(len, true),
-            vec
+            vec,
         }
     }
 
     /// Allocates a new `VecOption<T>` of a given length, with the contents being equivalent to
     /// `vec![None; len]`.
-    /// 
+    ///
     /// This is the most efficient way to construct a `VecOption` that contains a repeated run
     /// of `None`.
-    /// 
+    ///
     /// Example:
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::<i32>::new_repeat_none(3);
@@ -183,7 +185,9 @@ impl<T> VecOption<T> {
     /// ```
     pub fn new_repeat_none(len: usize) -> Self {
         let mut vec: Vec<T> = Vec::with_capacity(len);
-        unsafe { vec.set_len(len); }
+        unsafe {
+            vec.set_len(len);
+        }
         Self {
             vec,
             present: BitVec::from_elem(len, false),
@@ -204,7 +208,7 @@ impl<T> VecOption<T> {
     }
 
     /// Returns `true` if the collection is empty.
-    /// 
+    ///
     /// A collection that contains only `None` values is not empty.
     pub fn is_empty(&self) -> bool {
         self.vec.is_empty()
@@ -226,7 +230,7 @@ impl<T> VecOption<T> {
         Drain {
             vec: self,
             range: range.clone(),
-            next: range.start
+            next: range.start,
         }
     }
 
@@ -239,7 +243,7 @@ impl<T> VecOption<T> {
         let end = match range.end_bound() {
             std::ops::Bound::Unbounded => self.len(),
             std::ops::Bound::Included(&end) => end + 1,
-            std::ops::Bound::Excluded(&end) => end
+            std::ops::Bound::Excluded(&end) => end,
         };
         assert!(start <= end);
         assert!(end <= self.len());
@@ -249,11 +253,11 @@ impl<T> VecOption<T> {
     /// Finds all of the `Some` values within the `VecOption<T>` and moves them so that they are
     /// contiguous, starting at index 0. Returns a mutable slice over the contiguous `Some(T)` entries.
     /// The length of that slice is equal to the total number of `Some(T)` entries.
-    /// 
-    /// This method changes the length of the vector. After this 
-    /// 
+    ///
+    /// This method changes the length of the vector. After this
+    ///
     /// Example:
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new_repeat_none(5);
@@ -275,7 +279,13 @@ impl<T> VecOption<T> {
         for (i, item_present) in self.present.iter().enumerate() {
             if item_present {
                 if i != num_keep {
-                    unsafe { core::ptr::copy_nonoverlapping(items_ptr.add(i), items_ptr.add(num_keep), 1); }
+                    unsafe {
+                        core::ptr::copy_nonoverlapping(
+                            items_ptr.add(i),
+                            items_ptr.add(num_keep),
+                            1,
+                        );
+                    }
                 }
                 num_keep += 1;
             }
@@ -288,7 +298,9 @@ impl<T> VecOption<T> {
                 self.present.set(i, false);
             }
             // Change the length of the collection
-            unsafe { self.vec.set_len(num_keep); }
+            unsafe {
+                self.vec.set_len(num_keep);
+            }
             self.present.truncate(num_keep);
         }
 
@@ -299,9 +311,9 @@ impl<T> VecOption<T> {
     /// Finds all of the `Some` values within the `VecOption<T>` and moves them so that they are
     /// contiguous, starting at index 0, and then converts the `VecOption<T>` to a `Vec<T>` whose
     /// length is equal to the number of `Some` values that were found.
-    /// 
+    ///
     /// Example:
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::<i32>::new();
@@ -321,14 +333,16 @@ impl<T> VecOption<T> {
         let new_len = self.compact().len();
         let mut vec = core::mem::replace(&mut self.vec, Vec::new());
         core::mem::replace(&mut self.present, BitVec::new());
-        unsafe { vec.set_len(new_len); }
+        unsafe {
+            vec.set_len(new_len);
+        }
         vec
     }
 
     /// Gets a reference to a item, by index.
     /// The index is required be valid (less than `len()`);
     /// if the index is out of bounds then this method will panic.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
@@ -348,7 +362,7 @@ impl<T> VecOption<T> {
     /// Gets a mutable reference to a item, by index.
     /// The index is required be valid (less than `len()`);
     /// if the index is out of bounds then this method will panic.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
@@ -367,7 +381,7 @@ impl<T> VecOption<T> {
     }
 
     /// Gets a copy of an item, by index.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
@@ -376,12 +390,15 @@ impl<T> VecOption<T> {
     /// assert_eq!(v.get_copy(0), Some(42));
     /// assert_eq!(v.get_copy(1), None);
     /// ```
-    pub fn get_copy(&mut self, index: usize) -> Option<T> where T: Copy {
+    pub fn get_copy(&mut self, index: usize) -> Option<T>
+    where
+        T: Copy,
+    {
         self.get_ref(index).map(|v| *v)
     }
 
     /// Gets a clone of an item, by index.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
@@ -390,13 +407,16 @@ impl<T> VecOption<T> {
     /// assert_eq!(v.get_clone(0), Some("Hello!".to_string()));
     /// assert_eq!(v.get_clone(1), None);
     /// ```
-    pub fn get_clone(&mut self, index: usize) -> Option<T> where T: Clone {
+    pub fn get_clone(&mut self, index: usize) -> Option<T>
+    where
+        T: Clone,
+    {
         self.get_ref(index).map(|v| v.clone())
     }
 
     /// Sets an item in the vector, taking `Option<T>`.
     /// The existing item is returned.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
@@ -414,7 +434,7 @@ impl<T> VecOption<T> {
 
     /// Sets an item in the vector to `Some`, taking `T`.
     /// The existing item is returned.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
@@ -424,20 +444,20 @@ impl<T> VecOption<T> {
     /// ```
     pub fn replace_some(&mut self, index: usize, value: T) -> Option<T> {
         let old_value = if self.present[index] {
-            Some(unsafe {
-                core::ptr::read(self.vec.as_ptr().add(index))
-            })
+            Some(unsafe { core::ptr::read(self.vec.as_ptr().add(index)) })
         } else {
             self.present.set(index, true);
             None
         };
-        unsafe { core::ptr::write(self.vec.as_mut_ptr().add(index), value); }
+        unsafe {
+            core::ptr::write(self.vec.as_mut_ptr().add(index), value);
+        }
         old_value
     }
 
     /// Sets an item in the vector to `None`.
     /// The existing item is returned.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
@@ -448,9 +468,7 @@ impl<T> VecOption<T> {
     pub fn replace_none(&mut self, index: usize) -> Option<T> {
         if self.present[index] {
             self.present.set(index, false);
-            Some(unsafe {
-                core::ptr::read(self.vec.as_ptr().add(index))
-            })
+            Some(unsafe { core::ptr::read(self.vec.as_ptr().add(index)) })
         } else {
             None
         }
@@ -502,32 +520,38 @@ impl<T> VecOption<T> {
     /// Iterates only the `Some` items in the vector, as `(index, &T)`,
     /// where `index` is the index of each such item.
     pub fn iter_some_index(&self) -> impl Iterator<Item = (usize, &T)> + '_ {
-        self.present.iter().enumerate().flat_map(move |(i, is_present)| {
-            if is_present {
-                Some((i, unsafe { &*self.vec.as_ptr().add(i) }))
-            } else {
-                None
-            }
-        })
+        self.present
+            .iter()
+            .enumerate()
+            .flat_map(move |(i, is_present)| {
+                if is_present {
+                    Some((i, unsafe { &*self.vec.as_ptr().add(i) }))
+                } else {
+                    None
+                }
+            })
     }
 
     /// Iterates only the `Some` items in the vector, as `&mut T`,
     /// where `index` is the index of each such item.
     pub fn iter_some_index_mut(&mut self) -> impl Iterator<Item = (usize, &mut T)> + '_ {
         let items_ptr = self.vec.as_mut_ptr();
-        self.present.iter().enumerate().flat_map(move |(i, is_present)| {
-            if is_present {
-                Some((i, unsafe { &mut *items_ptr.add(i) }))
-            } else {
-                None
-            }
-        })
+        self.present
+            .iter()
+            .enumerate()
+            .flat_map(move |(i, is_present)| {
+                if is_present {
+                    Some((i, unsafe { &mut *items_ptr.add(i) }))
+                } else {
+                    None
+                }
+            })
     }
 
     /// Iterates contiguous runs of `Some` items as `&[T]`.
-    /// 
+    ///
     /// Example:
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::<i32>::new();
@@ -545,15 +569,12 @@ impl<T> VecOption<T> {
     /// assert_eq!(iter.next(), None);
     /// ```
     pub fn iter_runs(&self) -> IterRuns<'_, T> {
-        IterRuns {
-            vec: self,
-            next: 0
-        }
+        IterRuns { vec: self, next: 0 }
     }
 
     /// Iterations continguous runs of `Some` items as `&mut [T]`.
     /// Example:
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::<i32>::new();
@@ -572,10 +593,7 @@ impl<T> VecOption<T> {
     /// );
     /// ```
     pub fn iter_runs_mut(&mut self) -> IterRunsMut<'_, T> {
-        IterRunsMut {
-            vec: self,
-            next: 0
-        }
+        IterRunsMut { vec: self, next: 0 }
     }
 
     /// Pushes a new `Option<T>` onto the end of the vector.
@@ -592,7 +610,7 @@ impl<T> VecOption<T> {
     }
 
     /// Pushes a new `T` value onto the end of the vector, as a `Some` value.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::new();
@@ -605,7 +623,7 @@ impl<T> VecOption<T> {
     }
 
     /// Pushes a new `None` value onto the end of the vector.
-    /// 
+    ///
     /// ```
     /// # use trellis::vec_option::VecOption;
     /// let mut v = VecOption::<i32>::new();
@@ -616,7 +634,9 @@ impl<T> VecOption<T> {
         let len = self.vec.len();
         self.present.push(false);
         self.vec.reserve(1);
-        unsafe { self.vec.set_len(len + 1); }
+        unsafe {
+            self.vec.set_len(len + 1);
+        }
     }
 
     pub fn reserve(&mut self, new_capacity: usize) {
@@ -632,8 +652,10 @@ impl<T> VecOption<T> {
             if last_is_present {
                 Some(self.vec.pop())
             } else {
-                let new_len = self.vec.len() -1 ;
-                unsafe { self.vec.set_len(new_len); }
+                let new_len = self.vec.len() - 1;
+                unsafe {
+                    self.vec.set_len(new_len);
+                }
                 Some(None)
             }
         } else {
@@ -643,9 +665,9 @@ impl<T> VecOption<T> {
 
     /// Pops the last `Some` value from the `VecOption`, while also popping any number of
     /// `None` values.
-    /// 
+    ///
     /// Example:
-    /// 
+    ///
     /// ```
     /// let mut v = trellis::vec_option::VecOption::<i32>::new();
     /// v.push(Some(42));
@@ -663,10 +685,7 @@ impl<T> VecOption<T> {
     }
 
     pub fn into_some_iter(self) -> IntoSomeIter<T> {
-        IntoSomeIter {
-            vec: self,
-            next: 0
-        }
+        IntoSomeIter { vec: self, next: 0 }
     }
 }
 
@@ -695,7 +714,10 @@ impl<'a, T> Iterator for IterRuns<'a, T> {
         self.next = range.end;
         if range.start < range.end {
             Some(unsafe {
-                core::slice::from_raw_parts(self.vec.vec.as_ptr().add(range.start), range.end - range.start)
+                core::slice::from_raw_parts(
+                    self.vec.vec.as_ptr().add(range.start),
+                    range.end - range.start,
+                )
             })
         } else {
             None
@@ -715,7 +737,10 @@ impl<'a, T> Iterator for IterRunsMut<'a, T> {
         self.next = range.end;
         if range.start < range.end {
             Some(unsafe {
-                core::slice::from_raw_parts_mut(self.vec.vec.as_mut_ptr().add(range.start), range.end - range.start)
+                core::slice::from_raw_parts_mut(
+                    self.vec.vec.as_mut_ptr().add(range.start),
+                    range.end - range.start,
+                )
             })
         } else {
             None
@@ -728,7 +753,9 @@ impl<T> Drop for VecOption<T> {
         if core::mem::needs_drop::<T>() {
             for (i, value) in self.present.iter().enumerate() {
                 if value {
-                    unsafe { core::ptr::drop_in_place(self.vec.as_mut_ptr().add(i)); }
+                    unsafe {
+                        core::ptr::drop_in_place(self.vec.as_mut_ptr().add(i));
+                    }
                 }
             }
         }
@@ -754,16 +781,13 @@ impl<T> IntoIterator for VecOption<T> {
     type Item = Option<T>;
     type IntoIter = IntoIter<T>;
     fn into_iter(self) -> IntoIter<T> {
-        IntoIter {
-            vec: self,
-            next: 0
-        }
+        IntoIter { vec: self, next: 0 }
     }
 }
 
 pub struct IntoIter<T> {
     vec: VecOption<T>,
-    next: usize
+    next: usize,
 }
 
 impl<T> Iterator for IntoIter<T> {
@@ -811,7 +835,7 @@ impl<'a, T> Drop for Drain<'a, T> {
             core::ptr::copy(
                 self.vec.vec.as_mut_ptr().add(self.range.end),
                 self.vec.vec.as_mut_ptr().add(self.range.start),
-                self.vec.len() - self.range.end
+                self.vec.len() - self.range.end,
             );
             self.vec.vec.set_len(new_len);
         }
@@ -822,13 +846,13 @@ impl<'a, T> Drop for Drain<'a, T> {
 
 pub struct DrainSome<'a, T> {
     vec: &'a mut VecOption<T>,
-    range: Range<usize>
+    range: Range<usize>,
 }
 
 // BitVec does not have a way to delete a range.
 fn bitvec_delete_range(bitvec: &mut BitVec, range: Range<usize>) {
     let range_len = range.end - range.start;
-    for from in range.end .. bitvec.len() {
+    for from in range.end..bitvec.len() {
         let bit = bitvec[from];
         bitvec.set(from - range_len, bit);
     }
@@ -854,4 +878,3 @@ impl<T> Iterator for IntoSomeIter<T> {
         }
     }
 }
-

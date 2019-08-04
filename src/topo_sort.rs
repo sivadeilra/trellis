@@ -4,19 +4,19 @@ use crate::V;
 use log::debug;
 
 /// Reads an edge list and produces a topological sort of the graph.
-/// 
+///
 /// On success, the output vector contains a list of vertices, in order from sinks
 /// to sources. That is, for any `i` and `j` indices in the returned order `order`,
 /// if `i < j` then there are no paths from vertex `order[i]` to `order[j]`.
 /// The `topo_sort` function returns the opposite order (sources to sinks).
-/// 
+///
 /// It is legal for the input to contain disjoint subgraphs. If the input does contain
 /// more than one disjoint subgraph, then there are no guarantees about the order of
 /// the returned vertex list with respect to these disjoint subgraphs. That is, if the
 /// input contains two disjoint subgraphs G1 and G2, then the output vertex list may
 /// contain vertexes drawn from G1, then G2, then G1 again, then G2 again, etc. They
 /// are not partitioned.
-/// 
+///
 /// It is legal for the input to contain degenerate vertices, meaning vertices that have
 /// no edges (in-degree = 0 and out-degree = 0). The output will _not_ contain these vertices.
 pub fn topo_sort_reverse(graph: &Graph) -> Result<Vec<u32>, Error> {

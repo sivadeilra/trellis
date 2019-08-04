@@ -2,8 +2,9 @@ use crate::ramp_table::RampTable;
 use std::u16;
 
 pub mod disjoint;
-pub mod graph;
 pub mod error;
+pub mod find_chains;
+pub mod graph;
 pub mod layering;
 pub mod ramp_table;
 pub mod topo_sort;
@@ -93,45 +94,6 @@ pub fn find_sources(edges: &RampTable<u32>) -> Vec<bool> {
 /// Returns a vector indicating which verts are sinks (have no outgoing edges).
 pub fn find_sinks(edges: &RampTable<u32>) -> Vec<bool> {
     edges.iter().map(|to_list| to_list.is_empty()).collect()
-}
-
-/// Given a graph in RampTable form, produce a new graph that is its transposition.
-pub fn transpose_graph(graph: &RampTable<u32>) -> RampTable<u32> {
-    let nv = graph.num_keys();
-
-    let mut t_index = vec![0; nv + 1];
-    // We can build the index table directly, by counting the in-degree of every vertex.
-
-    for &to in graph.all_values().iter() {
-        t_index[to as usize + 1] += 1;
-    }
-
-    // Now integrate.
-    let mut sum: u32 = 0;
-    for ii in t_index.iter_mut() {
-        sum += *ii;
-        *ii = sum;
-    }
-
-    // Build the values table.
-    // counts: For each output vertex, the number of edges written to it.
-    const PLACEHOLDER: u32 = !0u32;
-    let mut counts: Vec<u32> = vec![0; graph.num_keys()];
-    let mut t_values: Vec<u32> = vec![PLACEHOLDER; graph.num_values()];
-    for (from, to_list) in graph.iter().enumerate() {
-        for &to in to_list.iter() {
-            let counts_ptr = &mut counts[to as usize];
-            let t_values_ptr = &mut t_values[(t_index[to as usize] + *counts_ptr) as usize];
-            assert_eq!(*t_values_ptr, PLACEHOLDER);
-            *t_values_ptr = from as u32;
-            *counts_ptr += 1;
-        }
-    }
-
-    RampTable {
-        index: t_index,
-        values: t_values,
-    }
 }
 
 // the traversal does not include the starting node
