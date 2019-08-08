@@ -14,8 +14,7 @@ pub mod vec_option;
 
 mod iters;
 
-#[cfg(test)]
-mod testing;
+pub mod testing;
 
 
 

@@ -1,0 +1,14 @@
+<html>
+    <head>
+        <title>WebAssembly test</title>
+        <script>
+        import("./trellis_view.js").catch(e => console.error("failed to import trellis_view.js:", e));
+        </script>
+    </head>
+    <body>
+        <h2>Trellis View</h2>
+        <p>
+            <canvas id="trellis_canvas" width="800" height="600" style="border: 1px solid black; padding: 5px;"></canvas>
+        </p>
+    </body>
+</html>

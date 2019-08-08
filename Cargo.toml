@@ -1,0 +1,9 @@
+ 
+[workspace]
+members = [
+    "trellis",
+    # "trellis_view",
+    # "gtk_tinker",
+    "trellis_view_wasm",
+    
+]

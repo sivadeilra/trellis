@@ -2,6 +2,7 @@ use crate::graph::Graph;
 use crate::V;
 use std::collections::HashMap;
 
+#[cfg(test)]
 pub fn init_test() {
     drop(env_logger::try_init());
 }

@@ -48,6 +48,14 @@ pub struct LayerMap {
     pub layer_verts: RampTable<V>,
 }
 
+#[derive(Clone, Debug)]
+pub struct ProperGraph {
+    pub edges: RampTable<(V, V)>,
+    pub verts: RampTable<V>,
+    pub num_layers: usize,
+    pub v_pos: Vec<u32>
+}
+
 /// Scans the graph and assigns every vertex to a layer. The layer assignment
 /// ensures that all edges point "down". That is, if the graph contains an edge `f -> t`
 /// then `v_layer[f] > v_layer[t]`.
@@ -65,11 +73,11 @@ pub struct LayerMap {
 /// be created for each vertex. This is used to construct a RampTable. Placing the
 /// edges is relatively easy.
 ///
-pub fn create_proper_graph(graph: &Graph) -> Result<(), Error> {
+pub fn create_proper_graph(graph: &Graph) -> Result<ProperGraph, Error> {
     let topo_order = crate::topo_sort::topo_sort_reverse(graph)?;
     if topo_order.is_empty() {
         debug!("there are no connected edges in the graph.");
-        return Ok(());
+        return Err(Error::EmptyGraph);
     }
 
     debug!("num verts in topo sort: {}", topo_order.len());
@@ -135,7 +143,7 @@ pub fn create_proper_graph(graph: &Graph) -> Result<(), Error> {
     let layer_edges: RampTable::<(V, V)> = layer_edges_builder.finish();
 
     // layer_verts maps layer --> v
-    let layer_verts: RampTable::<V> = layer_verts_builder.finish();
+    let mut layer_verts: RampTable::<V> = layer_verts_builder.finish();
     assert_eq!(layer_verts.num_keys(), num_layers);
 
     let num_proper_verts = next_virt_v as usize;
@@ -162,11 +170,23 @@ pub fn create_proper_graph(graph: &Graph) -> Result<(), Error> {
 
     min_crossings_up(&mut v_pos, &layer_edges);
     min_crossings_down(&mut v_pos, &layer_edges);
+    min_crossings_up(&mut v_pos, &layer_edges);
+    min_crossings_down(&mut v_pos, &layer_edges);
 
     debug!("FINAL GRAPH");
     dump_proper_graph(&v_pos, &layer_verts, &layer_edges);
 
-    Ok(())
+    // Now sort layer_verts entries by their position
+    for lv in layer_verts.iter_mut() {
+        lv.sort_by_key(|&v| v_pos[v as usize]);
+    }
+
+    Ok(ProperGraph {
+        verts: layer_verts,
+        edges: layer_edges,
+        num_layers: num_layers,
+        v_pos: v_pos
+    })
 }
 
 type LayerEdges = RampTable<(u32, u32)>;
