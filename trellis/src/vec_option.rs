@@ -572,7 +572,8 @@ impl<T> VecOption<T> {
         IterRuns { vec: self, next: 0 }
     }
 
-    /// Iterations continguous runs of `Some` items as `&mut [T]`.
+    /// Iterates contiguous runs of `Some` items as `&mut [T]`.
+    /// 
     /// Example:
     ///
     /// ```

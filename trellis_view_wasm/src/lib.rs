@@ -4,7 +4,7 @@ use log::debug;
 use std::f64;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{DomError, CanvasRenderingContext2d, HtmlCanvasElement};
+use web_sys::{CanvasRenderingContext2d, DomError, HtmlCanvasElement};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -13,7 +13,7 @@ use web_sys::{DomError, CanvasRenderingContext2d, HtmlCanvasElement};
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
-extern {
+extern "C" {
     fn alert(s: &str);
 }
 
@@ -21,10 +21,7 @@ extern {
 pub fn start() {
     set_panic_hook();
 
-    wasm_logger::init(
-        wasm_logger::Config::new(log::Level::Debug)
-        .message_on_new_line()
-);    
+    wasm_logger::init(wasm_logger::Config::new(log::Level::Debug).message_on_new_line());
 
     log::debug!("hello, world, from logging");
 }
@@ -38,8 +35,7 @@ fn set_panic_hook() {
     // https://github.com/rustwasm/console_error_panic_hook#readme
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
-}    
-
+}
 
 // https://github.com/rustwasm/wasm-bindgen/tree/master/examples/canvas
 
@@ -51,19 +47,24 @@ macro_rules! unwrap_option_or_throw {
             DomError::new_with_message("unwrap_option_or_throw", $msg)?;
             panic!();
         }
-    }
+    };
 }
 
 #[wasm_bindgen]
 pub fn hello_world() -> Result<(), JsValue> {
     let document = web_sys::window().unwrap().document().unwrap();
 
-    let canvas_node = unwrap_option_or_throw!(document.get_element_by_id("trellis_canvas"), "Missing canvas");
-    let canvas: HtmlCanvasElement = canvas_node
-        .dyn_into::<HtmlCanvasElement>()?;
+    let canvas_node = unwrap_option_or_throw!(
+        document.get_element_by_id("trellis_canvas"),
+        "Missing canvas"
+    );
+    let canvas: HtmlCanvasElement = canvas_node.dyn_into::<HtmlCanvasElement>()?;
 
-    let context = unwrap_option_or_throw!(canvas.get_context("2d")?, "get_context() should return a non-null value")
-        .dyn_into::<CanvasRenderingContext2d>()?;
+    let context = unwrap_option_or_throw!(
+        canvas.get_context("2d")?,
+        "get_context() should return a non-null value"
+    )
+    .dyn_into::<CanvasRenderingContext2d>()?;
 
     context.begin_path();
 
@@ -123,7 +124,7 @@ impl GraphDrawingParams {
 }
 
 use trellis::graph::Graph;
-use trellis::layering::{ProperGraph, create_proper_graph};
+use trellis::layering::{create_proper_graph, ProperGraph};
 use trellis::ramp_table::RampTable;
 
 #[wasm_bindgen]
@@ -131,25 +132,25 @@ use trellis::ramp_table::RampTable;
 pub struct CanvasApp {
     graph: Graph,
     proper_graph: ProperGraph,
-    params: GraphDrawingParams
+    params: GraphDrawingParams,
 }
 
 #[wasm_bindgen]
 pub fn make_app() -> CanvasApp {
     let graph = graph_from_paths(&[
-            &[1, 10, 11, 12, 13, 14],
-            &[1, 20, 21, 22, 23, 24],
-            &[1, 14],
-            &[1, 24],
-            &[10, 23],
-        ]);
+        &[1, 10, 11, 12, 13, 14],
+        &[1, 20, 21, 22, 23, 24],
+        &[1, 14],
+        &[1, 24],
+        &[10, 23],
+    ]);
 
     let proper_graph = create_proper_graph(&graph).unwrap();
 
     let app = CanvasApp {
         graph,
         proper_graph,
-        params: GraphDrawingParams::new()
+        params: GraphDrawingParams::new(),
     };
 
     app
@@ -159,7 +160,7 @@ pub fn make_app() -> CanvasApp {
 pub fn paint_graph(app: &CanvasApp, context: JsValue) -> Result<(), JsValue> {
     // debug!("paint_graph: {:?}", app);
 
-    let mut c = context.dyn_into::<CanvasRenderingContext2d>().unwrap();
+    let c = context.dyn_into::<CanvasRenderingContext2d>().unwrap();
 
     let params = &app.params;
     let proper_graph = &app.proper_graph;
@@ -184,7 +185,7 @@ pub fn paint_graph(app: &CanvasApp, context: JsValue) -> Result<(), JsValue> {
             c.move_to(from_vx, from_vy);
             c.line_to(to_vx, to_vy);
             c.stroke();
-       }
+        }
     }
 
     // paint verts
@@ -194,19 +195,19 @@ pub fn paint_graph(app: &CanvasApp, context: JsValue) -> Result<(), JsValue> {
         for &v in verts.iter() {
             let v_x = params.column_x(proper_graph.v_pos[v as usize]);
             let v_y = params.layer_y(layer as u32);
-            let lx = v_x;           // left x
-            let rx = v_x + vw;      // right x
-            let ty = v_y;           // top y
-            let by = v_y + vh;      // bottom y
+            let lx = v_x; // left x
+            let rx = v_x + vw; // right x
+            let ty = v_y; // top y
+            let by = v_y + vh; // bottom y
             c.begin_path();
 
             let notch_dx = 5.0;
             let notch_dy = 5.0;
 
-            c.move_to(lx + notch_dx, ty);        // top left point (right of notch)
-            c.line_to(rx, ty);      // top edge
-            c.line_to(rx, by);      // right edge
-            c.line_to(lx, by);      // bottom edge
+            c.move_to(lx + notch_dx, ty); // top left point (right of notch)
+            c.line_to(rx, ty); // top edge
+            c.line_to(rx, by); // right edge
+            c.line_to(lx, by); // bottom edge
             c.line_to(lx, ty + notch_dy);
 
             c.close_path();
@@ -225,4 +226,3 @@ pub fn paint_graph(app: &CanvasApp, context: JsValue) -> Result<(), JsValue> {
 
     Ok(())
 }
-

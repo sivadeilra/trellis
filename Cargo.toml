@@ -4,6 +4,9 @@ members = [
     "trellis",
     # "trellis_view",
     # "gtk_tinker",
-    "trellis_view_wasm",
-    
+    "trellis_view_wasm",    
 ]
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
