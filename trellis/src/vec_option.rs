@@ -844,10 +844,12 @@ impl<'a, T> Drop for Drain<'a, T> {
     }
 }
 
+/*
 pub struct DrainSome<'a, T> {
     vec: &'a mut VecOption<T>,
     range: Range<usize>,
 }
+*/
 
 // BitVec does not have a way to delete a range.
 fn bitvec_delete_range(bitvec: &mut BitVec, range: Range<usize>) {
@@ -878,3 +880,4 @@ impl<T> Iterator for IntoSomeIter<T> {
         }
     }
 }
+

@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use crate::ramp_table::RampTable;
 use std::u16;
 
@@ -10,8 +12,12 @@ pub mod ramp_table;
 pub mod topo_sort;
 pub mod vec_option;
 
+mod iters;
+
 #[cfg(test)]
 mod testing;
+
+
 
 /* very general
 use core::ops::AddAssign;

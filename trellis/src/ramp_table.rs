@@ -1,4 +1,5 @@
 use core::ops::Range;
+use log::debug;
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct RampTable<T> {
@@ -13,6 +14,15 @@ impl<T> RampTable<T> {
             index: vec![0],
             values: Vec::new(),
         }
+    }
+
+    pub fn with_capacity(keys_capacity: usize, values_capacity: usize) -> Self {
+        let mut table = Self {
+            index: Vec::with_capacity(keys_capacity + 1),
+            values: Vec::with_capacity(values_capacity),
+        };
+        table.index.push(0);
+        table
     }
 
     pub fn push_value(&mut self, value: T) {
@@ -30,7 +40,7 @@ impl<T> RampTable<T> {
     }
 
     // Iterates slices, one slice for each entry.
-    pub fn iter(&self) -> impl Iterator<Item = &[T]> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = &[T]> + '_ + DoubleEndedIterator + ExactSizeIterator {
         self.index
             .windows(2)
             .map(move |w| &self.values[w[0] as usize..w[1] as usize])
@@ -176,5 +186,59 @@ impl<T: Debug> Debug for RampTable<T> {
                     .filter(|(_, values)| !values.is_empty()),
             )
             .finish()
+    }
+}
+
+/// Helps with constructing a RampTable from a sequence of (key, value) pairs.
+/// The caller may report 'key' values in any order.
+#[derive(Debug)]
+pub struct RampTableBuilder<T> {
+    items: Vec<(u32, T)>,
+}
+
+impl<T> RampTableBuilder<T> {
+    pub fn new() -> Self {
+        Self {
+            items: Vec::new()
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            items: Vec::with_capacity(capacity)
+        }
+    }
+
+    pub fn push(&mut self, key: u32, value: T) {
+        self.items.push((key, value));
+    }
+
+    pub fn extend<I: Iterator<Item = (u32, T)>>(&mut self, iter: I) {
+        self.items.extend(iter);
+    }
+
+    pub fn finish(mut self) -> RampTable<T> {
+        let mut items = core::mem::replace(&mut self.items, Vec::new());
+        items.sort_by_key(move |&(key, ref _value)| key);
+        if items.is_empty() {
+            return RampTable::new();
+        }
+        debug!("RampTableBuilder: finish(): sorting {} items", items.len());
+        let num_keys = items.last().unwrap().0 as usize + 1;
+        debug!("num_keys = {}", num_keys);
+        let num_values = items.len();
+
+        let mut table: RampTable<T> = RampTable::with_capacity(num_keys, num_values);
+        for (key, value) in items.into_iter() {
+            while table.num_keys() < (key as usize) {
+                table.finish_key();
+            }
+            table.push_value(value);
+        }
+        while table.num_keys() < num_keys {
+            table.finish_key();
+        }
+        debug!("table.len = {}", table.num_keys());
+        table
     }
 }

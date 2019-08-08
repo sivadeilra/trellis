@@ -38,12 +38,12 @@ pub fn find_chains(graph: &Graph) -> RampTable<u32> {
 
         // handle 'from' side of this edge
         let vk = &mut v_degrees[from as usize];
-        let (mut fd, td) = unpack_degrees(*vk);
+        let (fd, td) = unpack_degrees(*vk);
         *vk = pack_degrees(increment_degree(fd), td);
 
         // handle 'to' side of this edge
         let vk = &mut v_degrees[to as usize];
-        let (fd, mut td) = unpack_degrees(*vk);
+        let (fd, td) = unpack_degrees(*vk);
         *vk = pack_degrees(fd, increment_degree(td));
     }
 
