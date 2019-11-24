@@ -85,7 +85,6 @@ pub fn find_chains(graph: &Graph) -> RampTable<u32> {
 
     debug!("chains: \n{:#?}", chains);
 
-
     debug!("done.");
     return chains;
 }
@@ -106,13 +105,11 @@ mod tests {
 
         case("empty", &graph_from_paths(&[]));
 
-        case("simple", &graph_from_paths(&[
-            &[1, 2, 3, 4, 5]
-        ]));
+        case("simple", &graph_from_paths(&[&[1, 2, 3, 4, 5]]));
 
-        case("double", &graph_from_paths(&[
-            &[1, 2, 3, 4, 5],
-            &[1, 10, 11, 12, 5],
-        ]));
+        case(
+            "double",
+            &graph_from_paths(&[&[1, 2, 3, 4, 5], &[1, 10, 11, 12, 5]]),
+        );
     }
 }

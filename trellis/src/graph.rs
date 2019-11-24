@@ -113,8 +113,8 @@ impl Graph {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::*;
     use super::*;
+    use crate::testing::*;
     use log::info;
 
     #[test]
@@ -127,10 +127,10 @@ mod tests {
         }
         init_test();
         case("empty", &graph_from_paths(&[]));
-        case("simple", &graph_from_paths(&[
-            &[1, 2, 3],
-            &[10, 11, 12, 13, 14],
-        ]));
+        case(
+            "simple",
+            &graph_from_paths(&[&[1, 2, 3], &[10, 11, 12, 13, 14]]),
+        );
     }
 
 }
