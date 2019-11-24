@@ -14,7 +14,7 @@ pub mod visibility;
 pub const POLYID_NONE: i32 = -1111;
 pub const POLYID_UNKNOWN: i32 = -2222;
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Pxy_t {
     pub x: f64,
     pub y: f64,

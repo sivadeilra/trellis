@@ -1,5 +1,4 @@
 use super::*;
-use core::ptr::null_mut;
 use log::debug;
 
 const ISCCW: i32 = 1;
@@ -10,15 +9,20 @@ const DQ_FRONT: i32 = 1;
 const DQ_BACK: i32 = 2;
 
 struct pointnlink_t {
-    pp: usize, // an index into the points array
-    link: *mut pointnlink_t,
+    pp: usize, // an index into the 'ps' points array
+
+    /// an index into pnls
+    link: usize,
 }
 
 const NULL_TRIANGLE_INDEX: usize = core::usize::MAX;
+const NULL_PNLS: usize = core::usize::MAX;
 
 struct tedge_t {
-    pnl0p: *mut pointnlink_t,
-    pnl1p: *mut pointnlink_t,
+    /// an index into pnls
+    pnl0p: usize,
+    /// an index into pnls
+    pnl1p: usize,
 
     // ltp = left triangle pointer, and is an index into 'tris'
     ltp: usize,
@@ -33,7 +37,9 @@ struct triangle_t {
 
 #[derive(Default)]
 struct deque_t {
-    pnlps: Vec<*mut pointnlink_t>,
+    /// contains indices into pnls
+    pnlps: Vec<usize>,
+
     fpnlpi: usize,
     lpnlpi: usize,
     apex: usize,
@@ -52,19 +58,15 @@ pub enum ShortestPathError {
 fn Pshortestpath(
     polyp: &Ppoly_t,
     eps: &[Ppoint_t],
-    output: &mut Ppolyline_t,
-) -> Result<(), ShortestPathError> {
+) -> Result<Ppolyline_t, ShortestPathError> {
     let mut ps_vec: Vec<Ppoint_t> = Vec::with_capacity(polyp.ps.len() + 2);
     ps_vec.copy_from_slice(&polyp.ps);
 
     let mut pnls: Vec<pointnlink_t> = Vec::new();
-    let mut pnlps: Vec<*mut pointnlink_t> = Vec::new();
+    // pnlps contains indices into pnls
+    let mut pnlps: Vec<usize> = Vec::new();
     pnls.reserve(polyp.ps.len());
     pnlps.reserve(polyp.ps.len());
-
-    let mut tris: Vec<triangle_t> = Vec::new();
-    // static int trin; // tris.capacity()
-    // static int tril; // tris.size()
 
     let mut dq = deque_t::default();
     dq.pnlps.reserve(polyp.ps.len() * 2);
@@ -96,32 +98,30 @@ fn Pshortestpath(
         if (p1.x == p2.x && p2.x == p3.x) && (p3.y > p2.y) || ccw(p1, p2, p3) != ISCCW {
             for pi in (0..polyp.ps.len()).rev() {
                 if pi < polyp.ps.len() - 1
-                    && polyp.ps[pi].x == polyp.ps[pi + 1].x
-                    && polyp.ps[pi].y == polyp.ps[pi + 1].y
+                    && polyp.ps[pi] == polyp.ps[pi + 1]
                 {
                     continue;
                 }
                 let pnll = pnls.len();
                 pnls.push(pointnlink_t {
                     pp: pi,
-                    link: &mut pnls[pnll % polyp.ps.len()],
+                    link: pnll % polyp.ps.len(),
                 });
-                pnlps.push(&mut pnls[pnll]);
+                pnlps.push(pnll);
             }
         } else {
             for pi in 0..polyp.ps.len() {
                 if pi > 0
-                    && polyp.ps[pi].x == polyp.ps[pi - 1].x
-                    && polyp.ps[pi].y == polyp.ps[pi - 1].y
+                    && polyp.ps[pi] == polyp.ps[pi - 1]
                 {
                     continue;
                 }
                 let pnll = pnls.len();
                 pnls.push(pointnlink_t {
                     pp: pi,
-                    link: &mut pnls[pnll % polyp.ps.len()],
+                    link: pnll % polyp.ps.len(),
                 });
-                pnlps.push(&mut pnls[pnll]);
+                pnlps.push(pnll);
             }
         }
     }
@@ -134,7 +134,8 @@ fn Pshortestpath(
     #endif*/
 
     /* generate list of triangles */
-    triangulate(&mut tris, &ps_vec, &mut pnlps);
+    let mut tris: Vec<triangle_t> = Vec::new();
+    triangulate(&mut tris, &ps_vec, &pnls, &mut pnlps);
 
     /*#if defined(DEBUG) && DEBUG >= 2
         fprintf(stderr, "triangles\n%d\n", tris.size());
@@ -148,17 +149,12 @@ fn Pshortestpath(
     /* connect all pairs of triangles that share an edge */
     for trii in 0..tris.len() {
         for trij in trii + 1..tris.len() {
-            connecttris(&mut tris, trii, trij);
+            connect_tris(&mut tris, &pnls, trii, trij);
         }
     }
 
     let find_tri = |p: Ppoint_t| {
-        for i in 0..tris.len() {
-            if pointintri(&tris, &ps_vec, i, p) {
-                return Some(i);
-            }
-        }
-        return None;
+        tris.iter().position(|tri| point_in_tri(&ps_vec, &pnls, tri, p))
     };
 
     // find first triangle
@@ -178,17 +174,19 @@ fn Pshortestpath(
     };
 
     /* mark the strip of triangles from eps[0] to eps[1] */
-    if !marktripath(&mut tris, ftrii, ltrii) {
+    if !mark_tri_path(&mut tris, ftrii, ltrii) {
         debug!("cannot find triangle path");
         /* a straight line is better than failing */
-        output.ps = vec![eps[0], eps[1]];
-        return Ok(());
+        return Ok(Ppolyline_t {
+            ps: vec![eps[0], eps[1]]
+        });
     }
 
     /* if endpoints in same triangle, use a single line */
     if ftrii == ltrii {
-        output.ps = vec![eps[0], eps[1]];
-        return Ok(());
+        return Ok(Ppolyline_t {
+            ps: vec![eps[0], eps[1]]
+        });
     }
 
     let ep0_index = ps_vec.len();
@@ -199,18 +197,18 @@ fn Pshortestpath(
     let ps: &[Ppoint_t] = &ps_vec;
 
     /* build funnel and shortest path linked list (in add2dq) */
-    let mut epnls: [pointnlink_t; 2] = [
-        pointnlink_t {
+    let ep0_nls_index = pnls.len();
+    pnls.push(pointnlink_t {
             pp: ep0_index,
-            link: null_mut(),
-        },
-        pointnlink_t {
+            link: NULL_PNLS,
+        });
+    let ep1_nls_index = pnls.len();
+    pnls.push(pointnlink_t {
             pp: ep1_index,
-            link: null_mut(),
-        },
-    ];
+            link: NULL_PNLS,
+        });
 
-    add2dq(&mut dq, DQ_FRONT, &mut epnls[0]);
+    add2dq(&mut dq, DQ_FRONT, &mut pnls, ep0_nls_index);
     dq.apex = dq.fpnlpi;
     let mut trii = ftrii;
     loop {
@@ -218,8 +216,8 @@ fn Pshortestpath(
         let trip = &tris[trii];
 
         /* find the left and right points of the exiting edge */
-        let lpnlp;
-        let rpnlp;
+        let lpnlp: usize; // index into pnls
+        let rpnlp: usize; // index into pnls
         let ei = trip
             .e
             .iter()
@@ -228,23 +226,23 @@ fn Pshortestpath(
             /* in last triangle */
             if ccw(
                 eps[1],
-                ps[(*dq.pnlps[dq.fpnlpi]).pp],
-                ps[(*dq.pnlps[dq.lpnlpi]).pp],
+                ps[pnls[dq.pnlps[dq.fpnlpi]].pp],
+                ps[pnls[dq.pnlps[dq.lpnlpi]].pp],
             ) == ISCCW
             {
                 lpnlp = dq.pnlps[dq.lpnlpi];
-                rpnlp = &mut epnls[1] as *mut _;
+                rpnlp = ep1_nls_index;
             } else {
-                lpnlp = &mut epnls[1] as *mut _;
+                lpnlp = ep1_nls_index;
                 rpnlp = dq.pnlps[dq.lpnlpi];
             }
         } else {
             let ei = ei.unwrap();
             let pnlp = trip.e[(ei + 1) % 3].pnl1p;
             if ccw(
-                ps[(*trip.e[ei].pnl0p).pp],
-                ps[(*pnlp).pp],
-                ps[(*trip.e[ei].pnl1p).pp],
+                ps[pnls[trip.e[ei].pnl0p].pp],
+                ps[pnls[pnlp].pp],
+                ps[pnls[trip.e[ei].pnl1p].pp],
             ) == ISCCW
             {
                 lpnlp = trip.e[ei].pnl1p;
@@ -257,23 +255,23 @@ fn Pshortestpath(
 
         /* update deque */
         if trii == ftrii {
-            add2dq(&mut dq, DQ_BACK, lpnlp);
-            add2dq(&mut dq, DQ_FRONT, rpnlp);
+            add2dq(&mut dq, DQ_BACK, &mut pnls, lpnlp);
+            add2dq(&mut dq, DQ_FRONT, &mut pnls, rpnlp);
         } else {
             if dq.pnlps[dq.fpnlpi] != rpnlp && dq.pnlps[dq.lpnlpi] != rpnlp {
                 /* add right point to deque */
-                let splitindex = finddqsplit(&mut dq, ps, rpnlp);
+                let splitindex = finddqsplit(&mut dq, ps, &pnls, rpnlp);
                 splitdq(&mut dq, DQ_BACK, splitindex);
-                add2dq(&mut dq, DQ_FRONT, rpnlp);
+                add2dq(&mut dq, DQ_FRONT, &mut pnls, rpnlp);
                 /* if the split is behind the apex, then reset apex */
                 if splitindex > dq.apex {
                     dq.apex = splitindex;
                 }
             } else {
                 /* add left point to deque */
-                let splitindex = finddqsplit(&mut dq, ps, lpnlp);
+                let splitindex = finddqsplit(&mut dq, ps, &pnls, lpnlp);
                 splitdq(&mut dq, DQ_FRONT, splitindex);
-                add2dq(&mut dq, DQ_BACK, lpnlp);
+                add2dq(&mut dq, DQ_BACK, &mut pnls, lpnlp);
                 /* if the split is in front of the apex, then reset apex */
                 if splitindex < dq.apex {
                     dq.apex = splitindex;
@@ -304,38 +302,39 @@ fn Pshortestpath(
 
     let mut num_output = 0;
     {
-        let mut pnlp: *mut pointnlink_t = &mut epnls[1];
-        while pnlp != null_mut() {
+        let mut pnlp: usize = ep1_nls_index;
+        while pnlp != NULL_PNLS {
             num_output += 1;
-            pnlp = (*pnlp).link;
+            pnlp = pnls[pnlp].link;
         }
     }
     let mut ops: Vec<Ppoint_t> = Vec::with_capacity(num_output);
     {
-        let mut pnlp = &mut epnls[1] as *mut pointnlink_t;
-        while pnlp != null_mut() {
-            ops.push(ps[(*pnlp).pp]);
-            pnlp = (*pnlp).link;
+        let mut pnlp = ep1_nls_index;
+        while pnlp != NULL_PNLS {
+            ops.push(ps[pnls[pnlp].pp]);
+            pnlp = pnls[pnlp].link;
         }
     }
     ops.reverse();
-    output.ps = ops;
-    Ok(())
+    Ok(Ppolyline_t {
+        ps: ops
+    })
 }
 
 /* triangulate polygon */
-fn triangulate(tris: &mut Vec<triangle_t>, ps: &[Ppoint_t], pnlps: &mut [*mut pointnlink_t]) {
+fn triangulate(tris: &mut Vec<triangle_t>, ps: &[Ppoint_t], pnls: &[pointnlink_t], pnlps: &mut [usize]) {
     let pnln = pnlps.len();
     if pnln > 3 {
         for pnli in 0..pnln {
             let pnlip1 = (pnli + 1) % pnln;
             let pnlip2 = (pnli + 2) % pnln;
-            if isdiagonal(ps, pnli, pnlip2, pnlps) {
+            if isdiagonal(ps, pnli, pnlip2, pnls, pnlps) {
                 loadtriangle(tris, pnlps[pnli], pnlps[pnlip1], pnlps[pnlip2]);
                 for pnli in pnlip1..pnln - 1 {
                     pnlps[pnli] = pnlps[pnli + 1];
                 }
-                triangulate(tris, ps, &mut pnlps[..pnlps.len() - 1]);
+                triangulate(tris, ps, pnls, &mut pnlps[..pnlps.len() - 1]);
                 return;
             }
         }
@@ -346,12 +345,12 @@ fn triangulate(tris: &mut Vec<triangle_t>, ps: &[Ppoint_t], pnlps: &mut [*mut po
 }
 
 /* check if (i, i + 2) is a diagonal */
-fn isdiagonal(ps: &[Ppoint_t], pnli: usize, pnlip2: usize, pnlps: &[*mut pointnlink_t]) -> bool {
+fn isdiagonal(ps: &[Ppoint_t], pnli: usize, pnlip2: usize, pnls: &[pointnlink_t], pnlps: &[usize]) -> bool {
     let pnln = pnlps.len();
     /* neighborhood test */
     let pnlip1 = (pnli + 1) % pnln;
     let pnlim1 = (pnli + pnln - 1) % pnln;
-    let ips = |i: usize| ps[(*pnlps[i]).pp];
+    let ips = |i: usize| ps[pnls[pnlps[i]].pp];
     /* If P[pnli] is a convex vertex [ pnli+1 left of (pnli-1,pnli) ]. */
     let res = if ccw(ips(pnlim1), ips(pnli), ips(pnlip1)) == ISCCW {
         ccw(ips(pnli), ips(pnlip2), ips(pnlim1)) == ISCCW
@@ -376,11 +375,12 @@ fn isdiagonal(ps: &[Ppoint_t], pnli: usize, pnlip2: usize, pnlps: &[*mut pointnl
     return true;
 }
 
+/// pnlap, pnlbp, pnlcp are all indices into pnls
 fn loadtriangle(
     tris: &mut Vec<triangle_t>,
-    pnlap: *mut pointnlink_t,
-    pnlbp: *mut pointnlink_t,
-    pnlcp: *mut pointnlink_t,
+    pnlap: usize,
+    pnlbp: usize,
+    pnlcp: usize,
 ) {
     let tri_index = tris.len();
     tris.push(triangle_t {
@@ -409,15 +409,17 @@ fn loadtriangle(
 }
 
 /* connect a pair of triangles at their common edge (if any) */
-fn connecttris(tris: &mut [triangle_t], tri1: usize, tri2: usize) {
+fn connect_tris(tris: &mut [triangle_t], pnls: &[pointnlink_t], tri1: usize, tri2: usize) {
     for ei in 0..3 {
         for ej in 0..3 {
             let tri1p = &tris[tri1];
             let tri2p = &tris[tri2];
-            if ((*tri1p.e[ei].pnl0p).pp == (*tri2p.e[ej].pnl0p).pp
-                && (*tri1p.e[ei].pnl1p).pp == (*tri2p.e[ej].pnl1p).pp)
-                || ((*tri1p.e[ei].pnl0p).pp == (*tri2p.e[ej].pnl1p).pp
-                    && (*tri1p.e[ei].pnl1p).pp == (*tri2p.e[ej].pnl0p).pp)
+            let t1e = &tri1p.e[ei];
+            let t2e = &tri2p.e[ej];
+            if (pnls[t1e.pnl0p].pp == pnls[t2e.pnl0p].pp
+             && pnls[t1e.pnl1p].pp == pnls[t2e.pnl1p].pp)
+            || (pnls[t1e.pnl0p].pp == pnls[t2e.pnl1p].pp
+             && pnls[t1e.pnl1p].pp == pnls[t2e.pnl0p].pp)
             {
                 tri1p.e[ei].rtp = tri2;
                 tri2p.e[ej].rtp = tri1;
@@ -427,7 +429,7 @@ fn connecttris(tris: &mut [triangle_t], tri1: usize, tri2: usize) {
 }
 
 /* find and mark path from trii, to trij */
-fn marktripath(tris: &mut [triangle_t], trii: usize, trij: usize) -> bool {
+fn mark_tri_path(tris: &mut [triangle_t], trii: usize, trij: usize) -> bool {
     if tris[trii].mark != 0 {
         return false;
     }
@@ -440,7 +442,7 @@ fn marktripath(tris: &mut [triangle_t], trii: usize, trij: usize) -> bool {
     let trip = &tris[trii];
     for ei in 0..3 {
         let e_rtp = trip.e[ei].rtp;
-        if e_rtp != NULL_TRIANGLE_INDEX && marktripath(tris, e_rtp, trij) {
+        if e_rtp != NULL_TRIANGLE_INDEX && mark_tri_path(tris, e_rtp, trij) {
             return true;
         }
     }
@@ -449,18 +451,19 @@ fn marktripath(tris: &mut [triangle_t], trii: usize, trij: usize) -> bool {
 }
 
 /* add a new point to the deque, either front or back */
-fn add2dq(dq: &mut deque_t, side: i32, pnlp: *mut pointnlink_t) {
+/// pnlp is an index into pnls
+fn add2dq(dq: &mut deque_t, side: i32, pnls: &mut [pointnlink_t], pnlp: usize) {
     if side == DQ_FRONT {
         if dq.lpnlpi - dq.fpnlpi >= 0 {
             /* shortest path links */
-            (*pnlp).link = dq.pnlps[dq.fpnlpi];
+            pnls[pnlp].link = dq.pnlps[dq.fpnlpi];
         }
         dq.fpnlpi -= 1;
         dq.pnlps[dq.fpnlpi] = pnlp;
     } else {
         if dq.lpnlpi - dq.fpnlpi >= 0 {
             /* shortest path links */
-            (*pnlp).link = dq.pnlps[dq.lpnlpi];
+            pnls[pnlp].link = dq.pnlps[dq.lpnlpi];
         }
         dq.lpnlpi += 1;
         dq.pnlps[dq.lpnlpi] = pnlp;
@@ -475,12 +478,13 @@ fn splitdq(dq: &mut deque_t, side: i32, index: usize) {
     }
 }
 
-fn finddqsplit(dq: &deque_t, ps: &[Ppoint_t], pnlp: *mut pointnlink_t) -> usize {
+// pnlp is an index into pnls
+fn finddqsplit(dq: &deque_t, ps: &[Ppoint_t], pnls: &[pointnlink_t], pnlp: usize) -> usize {
     for index in dq.fpnlpi..dq.apex {
         if ccw(
-            ps[(*dq.pnlps[index + 1]).pp],
-            ps[(*dq.pnlps[index]).pp],
-            ps[(*pnlp).pp],
+            ps[pnls[dq.pnlps[index + 1]].pp],
+            ps[pnls[dq.pnlps[index]].pp],
+            ps[pnls[pnlp].pp],
         ) == ISCCW
         {
             return index;
@@ -490,9 +494,9 @@ fn finddqsplit(dq: &deque_t, ps: &[Ppoint_t], pnlp: *mut pointnlink_t) -> usize 
     // for (int index = dq.lpnlpi; index > dq.apex; index--) {
     for index in (dq.apex + 1..dq.lpnlpi + 1).rev() {
         if ccw(
-            ps[(*dq.pnlps[index - 1]).pp],
-            ps[(*dq.pnlps[index]).pp],
-            ps[(*pnlp).pp],
+            ps[pnls[dq.pnlps[index - 1]].pp],
+            ps[pnls[dq.pnlps[index]].pp],
+            ps[pnls[pnlp].pp],
         ) == ISCW
         {
             return index;
@@ -546,12 +550,12 @@ fn between(pap: Ppoint_t, pbp: Ppoint_t, pcp: Ppoint_t) -> bool {
     (p2.x * p1.x + p2.y * p1.y >= 0.0) && (p2.x * p2.x + p2.y * p2.y <= p1.x * p1.x + p1.y * p1.y)
 }
 
-fn pointintri(tris: &[triangle_t], ps: &[Ppoint_t], trii: usize, pp: Ppoint_t) -> bool {
+fn point_in_tri(ps: &[Ppoint_t], pnls: &[pointnlink_t], tri: &triangle_t, pp: Ppoint_t) -> bool {
     let mut sum = 0;
     for ei in 0..3 {
         if ccw(
-            ps[(*tris[trii].e[ei].pnl0p).pp],
-            ps[(*tris[trii].e[ei].pnl1p).pp],
+            ps[pnls[tri.e[ei].pnl0p].pp],
+            ps[pnls[tri.e[ei].pnl1p].pp],
             pp,
         ) != ISCW
         {
