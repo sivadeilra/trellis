@@ -11,14 +11,14 @@ fn DISTSQ(a: Ppoint_t, b: Ppoint_t) -> f64 {
     (((a).x - (b).x) * ((a).x - (b).x)) + (((a).y - (b).y) * ((a).y - (b).y))
 }
 
-const POINTSIZE: usize = core::mem::size_of::<Ppoint_t>();
-
+/*
 fn LT(pa: Ppoint_t, pbp: &Ppoint_t) -> bool {
     ((pa.y > pbp.y) || ((pa.y == pbp.y) && (pa.x < pbp.x)))
 }
 fn GT(pa: Ppoint_t, pbp: &Ppoint_t) -> bool {
     ((pa.y < pbp.y) || ((pa.y == pbp.y) && (pa.x > pbp.x)))
 }
+*/
 
 struct p2e_t {
     pp: *mut Ppoint_t,
@@ -39,7 +39,7 @@ struct Context {
 }
 
 #[derive(Clone, Debug)]
-enum RouteError {}
+pub enum RouteError {}
 
 /* Proutespline:
  * Given a set of edgen line segments edges as obstacles, a template
@@ -47,7 +47,7 @@ enum RouteError {}
  * input and endpoing vectors, and return in output.
  * Return 0 on success and -1 on failure, including no memory.
  */
-fn Proutespline(
+pub fn Proutespline(
     edges: &[Pedge_t],
     input: &Ppolyline_t,
     evs: &mut [Ppoint_t],
@@ -64,7 +64,7 @@ fn Proutespline(
 
     /* unpack into previous format rather than modify legacy code */
     let inps: &[Ppoint_t] = &input.ps;
-    let inpn = inps.len();
+    let _inpn = inps.len();
 
     /*
         if (!(p2es = (p2e_t*)malloc(sizeof(p2e_t) * (p2en = edgen * 2)))) {

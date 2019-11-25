@@ -55,7 +55,7 @@ pub enum ShortestPathError {
  * points supplied in eps. The resulting polyline is stored in output.
  * Return 0 on success, -1 on bad input, -2 on memory allocation problem.
  */
-fn Pshortestpath(polyp: &Ppoly_t, eps: &[Ppoint_t]) -> Result<Ppolyline_t, ShortestPathError> {
+pub fn Pshortestpath(polyp: &Ppoly_t, eps: &[Ppoint_t]) -> Result<Ppolyline_t, ShortestPathError> {
     let mut ps_vec: Vec<Ppoint_t> = Vec::with_capacity(polyp.ps.len() + 2);
     ps_vec.copy_from_slice(&polyp.ps);
 
@@ -452,14 +452,14 @@ fn mark_tri_path(tris: &mut [triangle_t], trii: usize, trij: usize) -> bool {
 /// pnlp is an index into pnls
 fn add2dq(dq: &mut deque_t, side: i32, pnls: &mut [pointnlink_t], pnlp: usize) {
     if side == DQ_FRONT {
-        if dq.lpnlpi - dq.fpnlpi >= 0 {
+        if dq.lpnlpi >= dq.fpnlpi {
             /* shortest path links */
             pnls[pnlp].link = dq.pnlps[dq.fpnlpi];
         }
         dq.fpnlpi -= 1;
         dq.pnlps[dq.fpnlpi] = pnlp;
     } else {
-        if dq.lpnlpi - dq.fpnlpi >= 0 {
+        if dq.lpnlpi >= dq.fpnlpi {
             /* shortest path links */
             pnls[pnlp].link = dq.pnlps[dq.lpnlpi];
         }

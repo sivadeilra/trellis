@@ -1,6 +1,7 @@
 // port of graphviz path planner
 
 #![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
 
 pub mod array2;
 pub mod cvt;

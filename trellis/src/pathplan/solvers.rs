@@ -32,7 +32,7 @@ pub fn solve3(coeff: &[f64; 4]) -> (usize, [f64; 4]) {
     let disc = q * q + 4.0 * p * p * p;
 
     let mut roots: [f64; 4] = [0.0, 0.0, 0.0, 0.0];
-    let mut rootn: usize;
+    let rootn: usize;
 
     if disc < 0.0 {
         let r = 0.5 * (-disc + q * q).sqrt();

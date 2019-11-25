@@ -261,7 +261,7 @@ fn compVis(conf: &mut vconfig_t, start: usize) {
         } else {
             j = i - 1;
         }
-        while j >= 0 {
+        loop {
             if inCone(i, j, pts, nextPt, prevPt)
                 && inCone(j, i, pts, nextPt, prevPt)
                 && clear(pts[i], pts[j], V, V, V, pts, nextPt, prevPt)
@@ -295,7 +295,7 @@ pub fn visibility(conf: &mut vconfig_t) {
  * return the index of the polygon that contains
  * the point, or else POLYID_NONE.
  */
-fn polyhit(conf: &vconfig_t, p: Ppoint_t) -> i32 {
+pub fn polyhit(conf: &vconfig_t, p: Ppoint_t) -> i32 {
     for i in 0..conf.Npoly {
         let start = conf.start[i] as usize;
         let end = conf.start[i + 1] as usize;
@@ -315,7 +315,7 @@ fn polyhit(conf: &vconfig_t, p: Ppoint_t) -> i32 {
  * If pp is NIL, ptVis computes the visibility vector for p
  * relative to all barrier vertices.
  */
-fn ptVis(conf: &vconfig_t, mut pp: i32, p: Ppoint_t) -> Vec<COORD> {
+pub fn ptVis(conf: &vconfig_t, mut pp: i32, p: Ppoint_t) -> Vec<COORD> {
     let V = conf.N;
     let pts = &conf.P;
     let nextPt = &conf.next;

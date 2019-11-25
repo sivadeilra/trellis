@@ -8,7 +8,6 @@ pub type ilcoord_t = Ppoint_t;
  */
 pub fn Pobsopen(obs: &[&Ppoly_t]) -> vconfig_t {
     /* get storage */
-    let mut n = 0;
     let n: usize = obs.iter().map(|p| p.ps.len()).sum();
 
     let mut rv: vconfig_t = vconfig_t {
@@ -24,7 +23,7 @@ pub fn Pobsopen(obs: &[&Ppoly_t]) -> vconfig_t {
     /* build arrays */
     let mut i: usize = 0;
     for (poly_i, poly) in obs.iter().enumerate() {
-        let mut start = i;
+        let start = i;
         rv.start[poly_i] = start as i32;
         let end = start + poly.ps.len() - 1;
         for pt_i in poly.ps.iter() {
