@@ -174,7 +174,7 @@ fn reallyroutespline(
     let cp2: Ppoint_t = sub(p2, scale(v2, 1.0 / 3.0));
 
     let mut maxd: f64 = -1.0;
-    let maxi: i32 = -1;
+    let mut maxi: i32 = -1;
     for i in 1..inps.len() - 1 {
         let t = tnas[i].t;
         let p = Ppoint_t {
@@ -325,9 +325,7 @@ fn splinefits(
 fn splineisinside(edges: &[Pedge_t], sps: &[Ppoint_t]) -> bool {
     for ei in edges.iter() {
         let lps = [ei.a, ei.b];
-        /* if ((rootn = splineintersectsline (sps, lps, roots)) == 4)
-        return 1; */
-        let roots: [f64; 4];
+        let mut roots: [f64; 4] = [0.0; 4];
         let rootn = splineintersectsline(sps, &lps[..], &mut roots[..]);
         if rootn == 4 {
             continue;
@@ -397,7 +395,7 @@ fn splineintersectsline(sps: &[Ppoint_t], lps: &[Ppoint_t], roots: &mut [f64]) -
             for i in 0..xrootn {
                 let tv = xroots[i];
                 if tv >= 0.0 && tv <= 1.0 {
-                    let mut scoeff = points2coeff(sps[0].y, sps[1].y, sps[2].y, sps[3].y);
+                    let scoeff = points2coeff(sps[0].y, sps[1].y, sps[2].y, sps[3].y);
                     let mut sv = scoeff[0] + tv * (scoeff[1] + tv * (scoeff[2] + tv * scoeff[3]));
                     sv = (sv - ycoeff[0]) / ycoeff[1];
                     if (0.0 <= sv) && (sv <= 1.0) {
@@ -423,7 +421,7 @@ fn splineintersectsline(sps: &[Ppoint_t], lps: &[Ppoint_t], roots: &mut [f64]) -
         for i in 0..xrootn {
             let tv = xroots[i];
             if tv >= 0.0 && tv <= 1.0 {
-                let mut scoeff = points2coeff(sps[0].x, sps[1].x, sps[2].x, sps[3].x);
+                let scoeff = points2coeff(sps[0].x, sps[1].x, sps[2].x, sps[3].x);
                 let mut sv = scoeff[0] + tv * (scoeff[1] + tv * (scoeff[2] + tv * scoeff[3]));
                 sv = (sv - xcoeff[0]) / xcoeff[1];
                 if (0.0 <= sv) && (sv <= 1.0) {

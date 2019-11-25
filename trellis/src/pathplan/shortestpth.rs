@@ -87,7 +87,7 @@ pub fn makePath(
 ) -> Vec<i32> {
     let V = conf.N;
     if directVis(p, pp, q, qp, conf) {
-        let dad: Vec<i32> = vec![0; V + 2];
+        let mut dad: Vec<i32> = vec![0; V + 2];
         dad[V] = V as i32 + 1;
         dad[V + 1] = -1;
         dad

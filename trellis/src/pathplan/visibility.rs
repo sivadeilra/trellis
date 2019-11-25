@@ -255,7 +255,7 @@ fn compVis(conf: &mut vconfig_t, start: usize) {
         wadj[(previ as usize, i)] = d;
 
         /* Check remaining, earlier vertices */
-        let j;
+        let mut j;
         if previ == i as i32 - 1 {
             j = i - 2;
         } else {
@@ -315,7 +315,7 @@ fn polyhit(conf: &vconfig_t, p: Ppoint_t) -> i32 {
  * If pp is NIL, ptVis computes the visibility vector for p
  * relative to all barrier vertices.
  */
-fn ptVis(conf: &vconfig_t, pp: i32, p: Ppoint_t) -> Vec<COORD> {
+fn ptVis(conf: &vconfig_t, mut pp: i32, p: Ppoint_t) -> Vec<COORD> {
     let V = conf.N;
     let pts = &conf.P;
     let nextPt = &conf.next;

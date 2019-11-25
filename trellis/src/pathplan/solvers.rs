@@ -9,14 +9,12 @@ fn cbrt(x: f64) -> f64 {
 }
 
 const EPS: f64 = 1.0E-7;
-const fn AEQ0(x: f64) -> bool {
+
+fn AEQ0(x: f64) -> bool {
     (x < EPS) && (x > -EPS)
 }
 
 pub fn solve3(coeff: &[f64; 4]) -> (usize, [f64; 4]) {
-    let mut roots: [f64; 4] = [0.0, 0.0, 0.0, 0.0];
-    let mut rootn: usize = 0;
-
     let a = coeff[3];
     let b = coeff[2];
     let c = coeff[1];
@@ -32,6 +30,9 @@ pub fn solve3(coeff: &[f64; 4]) -> (usize, [f64; 4]) {
     let q = 2.0 * b_over_3a * p - b_over_3a * c_over_a + d_over_a;
     let p = c_over_a / 3.0 - p;
     let disc = q * q + 4.0 * p * p * p;
+
+    let mut roots: [f64; 4] = [0.0, 0.0, 0.0, 0.0];
+    let mut rootn: usize;
 
     if disc < 0.0 {
         let r = 0.5 * (-disc + q * q).sqrt();

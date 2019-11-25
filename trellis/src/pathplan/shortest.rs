@@ -272,7 +272,7 @@ fn Pshortestpath(polyp: &Ppoly_t, eps: &[Ppoint_t]) -> Result<Ppolyline_t, Short
                 }
             }
         }
-        let next_trii = None;
+        let mut next_trii = None;
         for ei in 0..3 {
             let rtp = trip.e[ei].rtp;
             if rtp != NULL_TRIANGLE_INDEX && tris[rtp].mark == 1 {
@@ -331,7 +331,8 @@ fn triangulate(
                 for pnli in pnlip1..pnln - 1 {
                     pnlps[pnli] = pnlps[pnli + 1];
                 }
-                triangulate(tris, ps, pnls, &mut pnlps[..pnlps.len() - 1]);
+                let pnlps_len = pnlps.len();
+                triangulate(tris, ps, pnls, &mut pnlps[..pnlps_len - 1]);
                 return;
             }
         }
@@ -419,8 +420,8 @@ fn connect_tris(tris: &mut [triangle_t], pnls: &[pointnlink_t], tri1: usize, tri
                 || (pnls[t1e.pnl0p].pp == pnls[t2e.pnl1p].pp
                     && pnls[t1e.pnl1p].pp == pnls[t2e.pnl0p].pp)
             {
-                tri1p.e[ei].rtp = tri2;
-                tri2p.e[ej].rtp = tri1;
+                tris[tri1].e[ei].rtp = tri2;
+                tris[tri2].e[ej].rtp = tri1;
             }
         }
     }
@@ -437,10 +438,9 @@ fn mark_tri_path(tris: &mut [triangle_t], trii: usize, trij: usize) -> bool {
         return true;
     }
 
-    let trip = &tris[trii];
     for ei in 0..3 {
-        let e_rtp = trip.e[ei].rtp;
-        if e_rtp != NULL_TRIANGLE_INDEX && mark_tri_path(tris, e_rtp, trij) {
+        let rtp = tris[trii].e[ei].rtp;
+        if rtp != NULL_TRIANGLE_INDEX && mark_tri_path(tris, rtp, trij) {
             return true;
         }
     }
