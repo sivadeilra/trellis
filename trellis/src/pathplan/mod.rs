@@ -9,6 +9,7 @@ pub mod route;
 pub mod shortest;
 pub mod shortestpth;
 pub mod solvers;
+pub mod triang;
 pub mod vis;
 pub mod visibility;
 

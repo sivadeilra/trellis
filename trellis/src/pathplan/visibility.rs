@@ -25,7 +25,7 @@ pub fn area2(a: Ppoint_t, b: Ppoint_t, c: Ppoint_t) -> COORD {
  * Returns 1, 0, -1 if the points abc are counterclockwise,
  * collinear, or clockwise.
  */
-fn wind(a: Ppoint_t, b: Ppoint_t, c: Ppoint_t) -> i32 {
+pub fn wind(a: Ppoint_t, b: Ppoint_t, c: Ppoint_t) -> i32 {
     let w = (a.y - b.y) * (c.x - b.x) - (c.y - b.y) * (a.x - b.x);
     /* need to allow for small math errors.  seen with "gcc -O2 -mcpu=i686 -ffast-math" */
     if w > 0.0001 {

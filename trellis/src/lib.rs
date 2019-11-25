@@ -2,7 +2,7 @@ use crate::ramp_table::RampTable;
 use std::u16;
 
 pub mod disjoint;
-pub mod dot_parser;
+// pub mod dot_parser;
 pub mod error;
 pub mod find_chains;
 pub mod graph;
