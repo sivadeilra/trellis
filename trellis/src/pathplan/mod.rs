@@ -7,9 +7,12 @@ pub mod cvt;
 pub mod in_poly;
 pub mod route;
 pub mod shortest;
+pub mod shortestpth;
 pub mod solvers;
 pub mod vis;
 pub mod visibility;
+
+pub type COORD = f64;
 
 pub const POLYID_NONE: i32 = -1111;
 pub const POLYID_UNKNOWN: i32 = -2222;

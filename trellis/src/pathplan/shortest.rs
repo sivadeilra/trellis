@@ -55,10 +55,7 @@ pub enum ShortestPathError {
  * points supplied in eps. The resulting polyline is stored in output.
  * Return 0 on success, -1 on bad input, -2 on memory allocation problem.
  */
-fn Pshortestpath(
-    polyp: &Ppoly_t,
-    eps: &[Ppoint_t],
-) -> Result<Ppolyline_t, ShortestPathError> {
+fn Pshortestpath(polyp: &Ppoly_t, eps: &[Ppoint_t]) -> Result<Ppolyline_t, ShortestPathError> {
     let mut ps_vec: Vec<Ppoint_t> = Vec::with_capacity(polyp.ps.len() + 2);
     ps_vec.copy_from_slice(&polyp.ps);
 
@@ -97,9 +94,7 @@ fn Pshortestpath(
         }];
         if (p1.x == p2.x && p2.x == p3.x) && (p3.y > p2.y) || ccw(p1, p2, p3) != ISCCW {
             for pi in (0..polyp.ps.len()).rev() {
-                if pi < polyp.ps.len() - 1
-                    && polyp.ps[pi] == polyp.ps[pi + 1]
-                {
+                if pi < polyp.ps.len() - 1 && polyp.ps[pi] == polyp.ps[pi + 1] {
                     continue;
                 }
                 let pnll = pnls.len();
@@ -111,9 +106,7 @@ fn Pshortestpath(
             }
         } else {
             for pi in 0..polyp.ps.len() {
-                if pi > 0
-                    && polyp.ps[pi] == polyp.ps[pi - 1]
-                {
+                if pi > 0 && polyp.ps[pi] == polyp.ps[pi - 1] {
                     continue;
                 }
                 let pnll = pnls.len();
@@ -154,7 +147,8 @@ fn Pshortestpath(
     }
 
     let find_tri = |p: Ppoint_t| {
-        tris.iter().position(|tri| point_in_tri(&ps_vec, &pnls, tri, p))
+        tris.iter()
+            .position(|tri| point_in_tri(&ps_vec, &pnls, tri, p))
     };
 
     // find first triangle
@@ -178,14 +172,14 @@ fn Pshortestpath(
         debug!("cannot find triangle path");
         /* a straight line is better than failing */
         return Ok(Ppolyline_t {
-            ps: vec![eps[0], eps[1]]
+            ps: vec![eps[0], eps[1]],
         });
     }
 
     /* if endpoints in same triangle, use a single line */
     if ftrii == ltrii {
         return Ok(Ppolyline_t {
-            ps: vec![eps[0], eps[1]]
+            ps: vec![eps[0], eps[1]],
         });
     }
 
@@ -199,14 +193,14 @@ fn Pshortestpath(
     /* build funnel and shortest path linked list (in add2dq) */
     let ep0_nls_index = pnls.len();
     pnls.push(pointnlink_t {
-            pp: ep0_index,
-            link: NULL_PNLS,
-        });
+        pp: ep0_index,
+        link: NULL_PNLS,
+    });
     let ep1_nls_index = pnls.len();
     pnls.push(pointnlink_t {
-            pp: ep1_index,
-            link: NULL_PNLS,
-        });
+        pp: ep1_index,
+        link: NULL_PNLS,
+    });
 
     add2dq(&mut dq, DQ_FRONT, &mut pnls, ep0_nls_index);
     dq.apex = dq.fpnlpi;
@@ -317,13 +311,16 @@ fn Pshortestpath(
         }
     }
     ops.reverse();
-    Ok(Ppolyline_t {
-        ps: ops
-    })
+    Ok(Ppolyline_t { ps: ops })
 }
 
 /* triangulate polygon */
-fn triangulate(tris: &mut Vec<triangle_t>, ps: &[Ppoint_t], pnls: &[pointnlink_t], pnlps: &mut [usize]) {
+fn triangulate(
+    tris: &mut Vec<triangle_t>,
+    ps: &[Ppoint_t],
+    pnls: &[pointnlink_t],
+    pnlps: &mut [usize],
+) {
     let pnln = pnlps.len();
     if pnln > 3 {
         for pnli in 0..pnln {
@@ -345,7 +342,13 @@ fn triangulate(tris: &mut Vec<triangle_t>, ps: &[Ppoint_t], pnls: &[pointnlink_t
 }
 
 /* check if (i, i + 2) is a diagonal */
-fn isdiagonal(ps: &[Ppoint_t], pnli: usize, pnlip2: usize, pnls: &[pointnlink_t], pnlps: &[usize]) -> bool {
+fn isdiagonal(
+    ps: &[Ppoint_t],
+    pnli: usize,
+    pnlip2: usize,
+    pnls: &[pointnlink_t],
+    pnlps: &[usize],
+) -> bool {
     let pnln = pnlps.len();
     /* neighborhood test */
     let pnlip1 = (pnli + 1) % pnln;
@@ -376,12 +379,7 @@ fn isdiagonal(ps: &[Ppoint_t], pnli: usize, pnlip2: usize, pnls: &[pointnlink_t]
 }
 
 /// pnlap, pnlbp, pnlcp are all indices into pnls
-fn loadtriangle(
-    tris: &mut Vec<triangle_t>,
-    pnlap: usize,
-    pnlbp: usize,
-    pnlcp: usize,
-) {
+fn loadtriangle(tris: &mut Vec<triangle_t>, pnlap: usize, pnlbp: usize, pnlcp: usize) {
     let tri_index = tris.len();
     tris.push(triangle_t {
         mark: 0,
@@ -417,9 +415,9 @@ fn connect_tris(tris: &mut [triangle_t], pnls: &[pointnlink_t], tri1: usize, tri
             let t1e = &tri1p.e[ei];
             let t2e = &tri2p.e[ej];
             if (pnls[t1e.pnl0p].pp == pnls[t2e.pnl0p].pp
-             && pnls[t1e.pnl1p].pp == pnls[t2e.pnl1p].pp)
-            || (pnls[t1e.pnl0p].pp == pnls[t2e.pnl1p].pp
-             && pnls[t1e.pnl1p].pp == pnls[t2e.pnl0p].pp)
+                && pnls[t1e.pnl1p].pp == pnls[t2e.pnl1p].pp)
+                || (pnls[t1e.pnl0p].pp == pnls[t2e.pnl1p].pp
+                    && pnls[t1e.pnl1p].pp == pnls[t2e.pnl0p].pp)
             {
                 tri1p.e[ei].rtp = tri2;
                 tri2p.e[ej].rtp = tri1;

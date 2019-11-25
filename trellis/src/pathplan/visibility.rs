@@ -377,7 +377,7 @@ fn ptVis(conf: &vconfig_t, pp: i32, p: Ppoint_t) -> Vec<COORD> {
  * If a point is associated with a polygon, the edges of the polygon
  * are ignored when checking visibility.
  */
-fn directVis(p: Ppoint_t, pp: i32, q: Ppoint_t, qp: i32, conf: &vconfig_t) -> bool {
+pub fn directVis(p: Ppoint_t, pp: i32, q: Ppoint_t, qp: i32, conf: &vconfig_t) -> bool {
     let V = conf.N;
     let pts = &conf.P;
     let nextPt = &conf.next;
