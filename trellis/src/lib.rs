@@ -1,15 +1,23 @@
-use crate::ramp_table::RampTable;
-use std::u16;
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+#![allow(unused_imports)]
 
+use crate::ramp_table::RampTable;
+use core::u16;
+
+pub mod cgraph;
 pub mod disjoint;
 // pub mod dot_parser;
 pub mod error;
 pub mod find_chains;
 pub mod graph;
+pub mod gvc;
 pub mod layering;
 pub mod pathplan;
+pub mod polyline;
 pub mod ramp_table;
 pub mod topo_sort;
+pub mod vec2;
 pub mod vec_option;
 
 #[cfg(test)]

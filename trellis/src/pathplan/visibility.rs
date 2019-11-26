@@ -1,6 +1,8 @@
 pub type COORD = f64;
 
 use super::*;
+use crate::vec2::Ppoint_t;
+
 // use super::array2::Array2;
 
 /* TRANSPARENT means router sees past colinear obstacles */

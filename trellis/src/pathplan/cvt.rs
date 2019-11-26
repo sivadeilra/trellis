@@ -1,5 +1,7 @@
 use super::vis::*;
 use super::*;
+use crate::polyline::Ppoly_t;
+use crate::vec2::Ppoint_t;
 
 pub type ilcoord_t = Ppoint_t;
 

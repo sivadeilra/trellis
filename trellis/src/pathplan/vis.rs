@@ -1,7 +1,6 @@
 use super::array2::Array2;
 use super::*;
-
-//    typedef COORD **array2;
+use crate::vec2::Ppoint_t;
 
 pub type COORD = f64;
 

@@ -2,6 +2,7 @@ use super::array2::Array2;
 use super::vis::vconfig_t;
 use super::visibility::directVis;
 use super::*;
+use crate::vec2::Ppoint_t;
 
 const UNSEEN: COORD = core::i32::MAX as f64;
 

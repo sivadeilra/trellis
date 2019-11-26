@@ -1,5 +1,7 @@
 use super::solvers::solve3;
 use super::*;
+use crate::polyline::Ppolyline_t;
+use crate::vec2::{Ppoint_t, Pvector_t};
 use log::debug;
 
 const EPSILON1: f64 = 1.0E-3;

@@ -1,4 +1,8 @@
 use super::*;
+use crate::polyline::Ppoly_t;
+use crate::polyline::Ppolyline_t;
+use crate::vec2::Ppoint_t;
+
 use log::debug;
 
 const ISCCW: i32 = 1;
