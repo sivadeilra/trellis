@@ -75,10 +75,7 @@ pub type Pvector_t = Pxy_t;
 impl Vec2<f64> {
     pub fn from_angle(theta: f64) -> Self {
         let (s, c) = theta.sin_cos();
-        Self {
-            x: c,
-            y: s,
-        }
+        Self { x: c, y: s }
     }
 }
 
@@ -90,10 +87,7 @@ impl<T: core::fmt::Debug> core::fmt::Debug for Vec2<T> {
 
 impl<T> From<(T, T)> for Vec2<T> {
     fn from((x, y): (T, T)) -> Self {
-        Self {
-            x,
-            y
-        }
+        Self { x, y }
     }
 }
 

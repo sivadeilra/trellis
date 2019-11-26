@@ -458,7 +458,7 @@ use core::ops::Range;
 struct F64Steps {
     start: f64,
     step: f64,
-    range: Range<i32>
+    range: Range<i32>,
 }
 
 impl Iterator for F64Steps {
@@ -476,7 +476,7 @@ impl F64Steps {
         F64Steps {
             start,
             step,
-            range: 0..steps
+            range: 0..steps,
         }
     }
 }
@@ -486,7 +486,13 @@ impl F64Steps {
 /// if isSlice is true, the path begins and ends with line segments
 /// to the center of the ellipse.
 /// Returned path must be freed by the caller.
-fn gen_elliptic_path<P: PathTarget>(ep: &mut Ellipse, degree: i32, threshold: f64, isSlice: bool, path: &mut P) {
+fn gen_elliptic_path<P: PathTarget>(
+    ep: &mut Ellipse,
+    degree: i32,
+    threshold: f64,
+    isSlice: bool,
+    path: &mut P,
+) {
     // find the number of Bezier curves needed
     let mut found = false;
     let mut n = 1;
@@ -600,8 +606,7 @@ fn test_ellipse() {
 
     println!("newpath {} {} moveto", path.ps[0].x, path.ps[0].y);
     for curve in path.ps[1..].chunks(3) {
-        println!(
-            "{:?} {:?} {:?} curveto", curve[0], curve[1], curve[2]);
+        println!("{:?} {:?} {:?} curveto", curve[0], curve[1], curve[2]);
     }
     println!("stroke showpage");
 }
