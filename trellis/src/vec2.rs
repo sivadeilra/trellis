@@ -87,3 +87,18 @@ impl<T: core::fmt::Debug> core::fmt::Debug for Vec2<T> {
         write!(fmt, "({:?}, {:?})", self.x, self.y)
     }
 }
+
+impl<T> From<(T, T)> for Vec2<T> {
+    fn from((x, y): (T, T)) -> Self {
+        Self {
+            x,
+            y
+        }
+    }
+}
+
+impl<T> Into<(T, T)> for Vec2<T> {
+    fn into(self) -> (T, T) {
+        (self.x, self.y)
+    }
+}

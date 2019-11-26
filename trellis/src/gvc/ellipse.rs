@@ -50,8 +50,6 @@ use crate::polyline::Ppolyline_t;
 use crate::vec2::Ppoint_t;
 use core::f64::consts::PI;
 
-const M_PI: f64 = PI;
-
 //use crate::pathplan;
 
 // #include "render.h"
@@ -76,7 +74,7 @@ fn fmax(a: f64, b: f64) -> f64 {
 }
 
 #[derive(Clone, Default)]
-struct ellipse_t {
+struct Ellipse {
     /* center */
     c: Vec2f,
 
@@ -121,7 +119,7 @@ struct ellipse_t {
     g2: f64,
 }
 
-fn computeFoci(ep: &mut ellipse_t) {
+fn computeFoci(ep: &mut Ellipse) {
     let d = (ep.a * ep.a - ep.b * ep.b).sqrt();
     let dx = d * ep.cosTheta;
     let dy = d * ep.sinTheta;
@@ -133,7 +131,7 @@ fn computeFoci(ep: &mut ellipse_t) {
 }
 
 /* Compute the locations of the endpoints. */
-fn computeEndPoints(ep: &mut ellipse_t) {
+fn computeEndPoints(ep: &mut Ellipse) {
     let aCosEta1 = ep.a * ep.eta1.cos();
     let bSinEta1 = ep.b * ep.eta1.sin();
     let aCosEta2 = ep.a * ep.eta2.cos();
@@ -149,7 +147,7 @@ fn computeEndPoints(ep: &mut ellipse_t) {
 }
 
 /* Compute the bounding box. */
-fn computeBounds(ep: &mut ellipse_t) {
+fn computeBounds(ep: &mut Ellipse) {
     let bOnA = ep.b / ep.a;
     let mut etaXMin;
     let mut etaXMax;
@@ -160,27 +158,27 @@ fn computeBounds(ep: &mut ellipse_t) {
         let tanTheta = ep.sinTheta / ep.cosTheta;
         if ep.cosTheta < 0.0 {
             etaXMin = -(tanTheta * bOnA).atan();
-            etaXMax = etaXMin + M_PI;
-            etaYMin = 0.5 * M_PI - (tanTheta / bOnA).atan();
-            etaYMax = etaYMin + M_PI;
+            etaXMax = etaXMin + PI;
+            etaYMin = 0.5 * PI - (tanTheta / bOnA).atan();
+            etaYMax = etaYMin + PI;
         } else {
             etaXMax = -(tanTheta * bOnA).atan();
-            etaXMin = etaXMax - M_PI;
-            etaYMax = 0.5 * M_PI - (tanTheta / bOnA).atan();
-            etaYMin = etaYMax - M_PI;
+            etaXMin = etaXMax - PI;
+            etaYMax = 0.5 * PI - (tanTheta / bOnA).atan();
+            etaYMin = etaYMax - PI;
         }
     } else {
         let invTanTheta = ep.cosTheta / ep.sinTheta;
         if ep.sinTheta < 0.0 {
-            etaXMax = 0.5 * M_PI + (invTanTheta / bOnA).atan();
-            etaXMin = etaXMax - M_PI;
+            etaXMax = 0.5 * PI + (invTanTheta / bOnA).atan();
+            etaXMin = etaXMax - PI;
             etaYMin = (invTanTheta * bOnA).atan();
-            etaYMax = etaYMin + M_PI;
+            etaYMax = etaYMin + PI;
         } else {
-            etaXMin = 0.5 * M_PI + (invTanTheta / bOnA).atan();
-            etaXMax = etaXMin + M_PI;
+            etaXMin = 0.5 * PI + (invTanTheta / bOnA).atan();
+            etaXMax = etaXMin + PI;
             etaYMax = (invTanTheta * bOnA).atan();
-            etaYMin = etaYMax - M_PI;
+            etaYMin = etaYMax - PI;
         }
     }
 
@@ -219,8 +217,8 @@ fn initEllipse(
     theta: f64,
     lambda1: f64,
     lambda2: f64,
-) -> ellipse_t {
-    let mut ep: ellipse_t = Default::default();
+) -> Ellipse {
+    let mut ep: Ellipse = Default::default();
 
     ep.c = point(cx, cy);
     ep.a = a;
@@ -237,7 +235,7 @@ fn initEllipse(
 
     // the preceding correction fails if we have exactly eta2 - eta1 = 2*PI
     // it reduces the interval to zero length
-    if (lambda2 - lambda1 > M_PI) && (ep.eta2 - ep.eta1 < M_PI) {
+    if (lambda2 - lambda1 > PI) && (ep.eta2 - ep.eta1 < PI) {
         ep.eta2 += TWOPI;
     }
 
@@ -292,13 +290,13 @@ static COEFFS2_HIGH: ErrArray = [
     ],
 ];
 
-// safety factor to convert the "best" error approximation
-// into a "max bound" error
+/// safety factor to convert the "best" error approximation
+/// into a "max bound" error
 static SAFETY2: [f64; 4] = [0.02, 2.83, 0.125, 0.01];
 
-// coefficients for error estimation
-// while using cubic Bezier curves for approximation
-// 0 < b/a < 1/4
+/// coefficients for error estimation
+/// while using cubic Bezier curves for approximation
+/// 0 < b/a < 1/4
 static COEFFS3_LOW: ErrArray = [
     [
         [3.85268, -21.229, -0.330434, 0.0127842],
@@ -314,9 +312,9 @@ static COEFFS3_LOW: ErrArray = [
     ],
 ];
 
-// coefficients for error estimation
-// while using cubic Bezier curves for approximation
-// 1/4 <= b/a <= 1
+/// coefficients for error estimation
+/// while using cubic Bezier curves for approximation
+/// 1/4 <= b/a <= 1
 static COEFFS3_HIGH: ErrArray = [
     [
         [0.0899116, -19.2349, -4.11711, 0.183362],
@@ -332,16 +330,16 @@ static COEFFS3_HIGH: ErrArray = [
     ],
 ];
 
-// safety factor to convert the "best" error approximation
-// into a "max bound" error
+/// safety factor to convert the "best" error approximation
+/// into a "max bound" error
 static SAFETY3: [f64; 4] = [0.001, 4.98, 0.207, 0.0067];
 
 /* Compute the value of a rational function.
  * This method handles rational functions where the numerator is
  * quadratic and the denominator is linear
  */
-fn RationalFunction(x: f64, c: &[f64; 4]) -> f64 {
-    ((x * (x * c[0] + c[1]) + c[2]) / (x + c[3]))
+fn rational_function(x: f64, c: &[f64; 4]) -> f64 {
+    (x * (x * c[0] + c[1]) + c[2]) / (x + c[3])
 }
 
 /* Estimate the approximation error for a sub-arc of the instance.
@@ -350,7 +348,7 @@ fn RationalFunction(x: f64, c: &[f64; 4]) -> f64 {
  * Returns upper bound of the approximation error between the Bezier
  * curve and the real ellipse
  */
-fn estimateError(ep: &mut ellipse_t, degree: i32, etaA: f64, etaB: f64) -> f64 {
+fn estimateError(ep: &mut Ellipse, degree: i32, etaA: f64, etaB: f64) -> f64 {
     let eta = 0.5 * (etaA + etaB);
 
     if degree < 2 {
@@ -400,17 +398,17 @@ fn estimateError(ep: &mut ellipse_t, degree: i32, etaA: f64, etaB: f64) -> f64 {
             safety = &SAFETY3;
         }
 
-        let c0 = RationalFunction(x, &coeffs[0][0])
-            + cos2 * RationalFunction(x, &coeffs[0][1])
-            + cos4 * RationalFunction(x, &coeffs[0][2])
-            + cos6 * RationalFunction(x, &coeffs[0][3]);
+        let c0 = rational_function(x, &coeffs[0][0])
+            + cos2 * rational_function(x, &coeffs[0][1])
+            + cos4 * rational_function(x, &coeffs[0][2])
+            + cos6 * rational_function(x, &coeffs[0][3]);
 
-        let c1 = RationalFunction(x, &coeffs[1][0])
-            + cos2 * RationalFunction(x, &coeffs[1][1])
-            + cos4 * RationalFunction(x, &coeffs[1][2])
-            + cos6 * RationalFunction(x, &coeffs[1][3]);
+        let c1 = rational_function(x, &coeffs[1][0])
+            + cos2 * rational_function(x, &coeffs[1][1])
+            + cos4 * rational_function(x, &coeffs[1][2])
+            + cos6 * rational_function(x, &coeffs[1][3]);
 
-        return RationalFunction(x, safety) * ep.a * (c0 + c1 * dEta).exp();
+        return rational_function(x, safety) * ep.a * (c0 + c1 * dEta).exp();
     }
 }
 
@@ -455,18 +453,46 @@ impl PathTarget for Ppolyline_t {
     }
 }
 
+use core::ops::Range;
+
+struct F64Steps {
+    start: f64,
+    step: f64,
+    range: Range<i32>
+}
+
+impl Iterator for F64Steps {
+    type Item = f64;
+    fn next(&mut self) -> Option<f64> {
+        let i = self.range.next()?;
+        Some(self.start + (i as f64) * self.step)
+    }
+}
+
+impl F64Steps {
+    pub fn from_range(start: f64, end: f64, steps: i32) -> Self {
+        assert!(steps >= 1);
+        let step = (end - start) / (steps as f64);
+        F64Steps {
+            start,
+            step,
+            range: 0..steps
+        }
+    }
+}
+
 /// Approximate an elliptical arc via Beziers of given degree
 /// threshold indicates quality of approximation
 /// if isSlice is true, the path begins and ends with line segments
 /// to the center of the ellipse.
 /// Returned path must be freed by the caller.
-fn genEllipticPath<P: PathTarget>(ep: &mut ellipse_t, degree: i32, threshold: f64, isSlice: bool, path: &mut P) {
+fn gen_elliptic_path<P: PathTarget>(ep: &mut Ellipse, degree: i32, threshold: f64, isSlice: bool, path: &mut P) {
     // find the number of Bezier curves needed
     let mut found = false;
     let mut n = 1;
     while !found && (n < 1024) {
         let dEta = (ep.eta2 - ep.eta1) / n as f64;
-        if dEta <= 0.5 * M_PI {
+        if dEta <= 0.5 * PI {
             let mut etaB = ep.eta1;
             found = true;
             for _ in 0..n {
@@ -483,10 +509,10 @@ fn genEllipticPath<P: PathTarget>(ep: &mut ellipse_t, degree: i32, threshold: f6
 
     let mut etaB = ep.eta1;
     let dEta = (ep.eta2 - ep.eta1) / n as f64;
-    let xB;
-    let yB;
-    let xBDot;
-    let yBDot;
+    let mut xB;
+    let mut yB;
+    let mut xBDot;
+    let mut yBDot;
     let alpha;
     {
         let cosEtaB = etaB.cos();
@@ -524,10 +550,10 @@ fn genEllipticPath<P: PathTarget>(ep: &mut ellipse_t, degree: i32, threshold: f6
         let bSinEtaB = ep.b * sinEtaB;
         let aSinEtaB = ep.a * sinEtaB;
         let bCosEtaB = ep.b * cosEtaB;
-        let xB = ep.c.x + aCosEtaB * ep.cosTheta - bSinEtaB * ep.sinTheta;
-        let yB = ep.c.y + aCosEtaB * ep.sinTheta + bSinEtaB * ep.cosTheta;
-        let xBDot = -aSinEtaB * ep.cosTheta - bCosEtaB * ep.sinTheta;
-        let yBDot = -aSinEtaB * ep.sinTheta + bCosEtaB * ep.cosTheta;
+        xB = ep.c.x + aCosEtaB * ep.cosTheta - bSinEtaB * ep.sinTheta;
+        yB = ep.c.y + aCosEtaB * ep.sinTheta + bSinEtaB * ep.cosTheta;
+        xBDot = -aSinEtaB * ep.cosTheta - bCosEtaB * ep.sinTheta;
+        yBDot = -aSinEtaB * ep.sinTheta + bCosEtaB * ep.cosTheta;
 
         match degree {
             1 => {
@@ -563,14 +589,14 @@ pub fn ellipticWedge<P: PathTarget>(
     path: &mut P,
 ) {
     let mut ell = initEllipse(ctr.x, ctr.y, xsemi, ysemi, 0.0, angle0, angle1);
-    genEllipticPath(&mut ell, 3, 0.00001, true, path);
+    gen_elliptic_path(&mut ell, 3, 0.00001, true, path);
 }
 
 #[test]
 fn test_ellipse() {
-    let mut ell = initEllipse(200.0, 200.0, 100.0, 50.0, 0.0, M_PI / 4.0, 3.0 * M_PI / 2.0);
+    let mut ell = initEllipse(200.0, 200.0, 100.0, 50.0, 0.0, PI / 4.0, 3.0 * PI / 2.0);
     let mut path: Ppolyline_t = <Ppolyline_t as Default>::default();
-    genEllipticPath(&mut ell, 3, 0.00001, true, &mut path);
+    gen_elliptic_path(&mut ell, 3, 0.00001, true, &mut path);
 
     println!("newpath {} {} moveto", path.ps[0].x, path.ps[0].y);
     for curve in path.ps[1..].chunks(3) {
