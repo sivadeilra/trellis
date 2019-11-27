@@ -1,0 +1,1 @@
+wasm-pack -v build --target web --out-dir web/pkg

@@ -1,4 +1,5 @@
 use core::ops::Range;
+use log::debug;
 
 /// Contains a mapping from index (key) to a set of values. Each set of values is stored in order
 /// of increasing index (key).
@@ -41,6 +42,7 @@ impl<T> Default for RampTable<T> {
 }
 
 impl<T> RampTable<T> {
+    /// Creates a new, empty `RampTable`.
     pub fn new() -> Self {
         Self {
             index: vec![0],
@@ -48,10 +50,25 @@ impl<T> RampTable<T> {
         }
     }
 
+    /// Creates a new, empty `RampTable`, with space preallocated for keys and values.
+    pub fn with_capacity(keys_capacity: usize, values_capacity: usize) -> Self {
+        let mut table = Self {
+            index: Vec::with_capacity(keys_capacity + 1),
+            values: Vec::with_capacity(values_capacity),
+        };
+        table.index.push(0);
+        table
+    }
+
+    /// Returns `true` if there are no keys in this `RampTable`. Equivalent to `self.len() == 0`.
+    /// 
+    /// Note that a `RampTable` may still contain unassociated values even if `is_empty` returns
+    /// `true.
     pub fn is_empty(&self) -> bool {
         self.index.len() == 1
     }
 
+    /// The number of keys in this `RampTable`. All keys are numbered sequentially.
     pub fn len(&self) -> usize {
         self.index.len() - 1
     }
@@ -107,7 +124,7 @@ impl<T> RampTable<T> {
     /// assert_eq!(ii.next(), Some(&["alpha", "bravo"][..]));
     /// assert_eq!(ii.next(), None);
     /// ```
-    pub fn iter(&self) -> impl Iterator<Item = &[T]> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = &[T]> + '_ + DoubleEndedIterator + ExactSizeIterator {
         self.index
             .windows(2)
             .map(move |w| &self.values[w[0] as usize..w[1] as usize])
@@ -149,14 +166,20 @@ impl<T> RampTable<T> {
         &mut self.values[range]
     }
 
+    /// Returns a slice over _all_ values in the table. The returned slice covers values in all keys
+    /// as well as any unassociated values at the end of the table.
     pub fn all_values(&self) -> &[T] {
         &self.values
     }
 
+    /// Returns a mutable slice over _all_ values in the table. The returned slice covers values in 
+    /// all keys as well as any unassociated values at the end of the table.
     pub fn all_values_mut(&mut self) -> &mut [T] {
         &mut self.values
     }
 
+    /// Iterates pairs of `(key, value)` items. The `key` values are guaranteed to be iterated in
+    /// non-decreasing order.
     pub fn iter_pairs(&self) -> impl Iterator<Item = (usize, &'_ T)> {
         self.iter()
             .enumerate()
@@ -279,5 +302,56 @@ impl<T: Debug> Debug for RampTable<T> {
                     .filter(|(_, values)| !values.is_empty()),
             )
             .finish()
+    }
+}
+
+/// Helps with constructing a RampTable from a sequence of (key, value) pairs.
+/// The caller may report 'key' values in any order.
+#[derive(Debug)]
+pub struct RampTableBuilder<T> {
+    items: Vec<(u32, T)>,
+}
+
+impl<T> RampTableBuilder<T> {
+    pub fn new() -> Self {
+        Self {
+            items: Vec::new()
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            items: Vec::with_capacity(capacity)
+        }
+    }
+
+    pub fn push(&mut self, key: u32, value: T) {
+        self.items.push((key, value));
+    }
+
+    pub fn extend<I: Iterator<Item = (u32, T)>>(&mut self, iter: I) {
+        self.items.extend(iter);
+    }
+
+    pub fn finish(mut self) -> RampTable<T> {
+        let mut items = core::mem::replace(&mut self.items, Vec::new());
+        items.sort_by_key(move |&(key, ref _value)| key);
+        if items.is_empty() {
+            return RampTable::new();
+        }
+        let num_keys = items.last().unwrap().0 as usize + 1;
+        let num_values = items.len();
+
+        let mut table: RampTable<T> = RampTable::with_capacity(num_keys, num_values);
+        for (key, value) in items.into_iter() {
+            while table.len() < (key as usize) {
+                table.finish_key();
+            }
+            table.push_value(value);
+        }
+        while table.len() < num_keys {
+            table.finish_key();
+        }
+        table
     }
 }

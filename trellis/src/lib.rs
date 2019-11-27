@@ -3,6 +3,7 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
+#![allow(unused_variables)]
 
 use crate::ramp_table::RampTable;
 use core::u16;
@@ -26,8 +27,11 @@ pub mod topo_sort;
 pub mod vec2;
 pub mod vec_option;
 
-#[cfg(test)]
-mod testing;
+mod iters;
+
+pub mod testing;
+
+
 
 /* very general
 use core::ops::AddAssign;
