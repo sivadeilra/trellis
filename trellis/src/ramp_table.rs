@@ -1,10 +1,43 @@
 use core::ops::Range;
 
+/// Contains a mapping from index (key) to a set of values. Each set of values is stored in order
+/// of increasing index (key).
+/// 
+/// `RampTable` is optimized for certain usage patterns. For those patterns, it is an efficient
+/// representation. For other usage patterns, `RampTable` may be inefficient or unsuitable.
+/// 
+/// A `RampTable` stores its data in two vectors: `index` and `values`. The `index` table contains
+/// offsets into `values`. These offsets are stored in non-decreasing order. The numeric difference
+/// between two consecutive entries in `values` gives the length of the slice within `values that
+/// corresponds to the items for the lower index.
+/// 
+/// The usage pattern that `RampTable` is designed for is appending a sequence of (key, value)
+/// pairs, where each key is in non-decreasing order. The result is a representation that is
+/// compact (has high data density), has constant-time lookup, and efficiently represents datasets
+/// that have a wide variety of counts of items.
+/// 
+/// This representation also allows acquiring references to slices that span more than one key.
+/// 
+/// Terminology:
+/// * key - An integer which identifies an ordered list of values in the table.
+/// * value - One item that is present in the table. Each value is associated with exactly one key.
+///
+/// Note that it is possible to add _unowned_ values to the end of the `RampTable`. A well-formed
+/// table will not have any unowned values.
 #[derive(Clone, Eq, PartialEq)]
 pub struct RampTable<T> {
     /// contains the index into values[] where each entry starts
     pub index: Vec<u32>,
     pub values: Vec<T>,
+}
+
+impl<T> Default for RampTable<T> {
+    fn default() -> Self {
+        Self {
+            index: vec![0],
+            values: Vec::new(),
+        }
+    }
 }
 
 impl<T> RampTable<T> {
@@ -15,28 +48,84 @@ impl<T> RampTable<T> {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.index.len() == 1
+    }
+
+    pub fn len(&self) -> usize {
+        self.index.len() - 1
+    }
+
+    /// Pushes a value onto the end of the `RampTable`. The item is _not_ yet associated with any
+    /// key. In order to associate all unowned values with the next key, call `finish_key`.
     pub fn push_value(&mut self, value: T) {
         self.values.push(value);
     }
 
-    pub fn finish_key(&mut self) {
+    /// Adds a new key to the end of the key list, and implicitly associates all unassociated values
+    /// with that key.
+    /// 
+    /// Example:
+    /// 
+    /// ```
+    /// # use trellis::ramp_table::RampTable;
+    /// let mut rt = RampTable::new();
+    /// rt.push_value("foo");
+    /// rt.push_value("bar");
+    /// rt.finish_key();
+    /// assert_eq!(rt.entry_values(0), &["foo", "bar"]);
+    /// ```
+    pub fn finish_key(&mut self) -> usize {
+        let key = self.index.len() - 1;
         self.index.push(self.values.len() as u32);
+        key
     }
 
     pub fn clear(&mut self) {
         self.values.clear();
         self.index.clear();
-        self.index.push(self.values.len() as u32);
+        self.index.push(0);
     }
 
-    // Iterates slices, one slice for each entry.
+    /// Iterates slices of values, one slice for each key.
+    ///
+    /// Example:
+    /// 
+    /// ```
+    /// # use trellis::ramp_table::RampTable;
+    /// let mut rt = RampTable::new();
+    /// rt.push_value("foo");
+    /// rt.push_value("bar");
+    /// rt.finish_key(); // 0
+    /// rt.finish_key(); // 1
+    /// rt.push_value("alpha");
+    /// rt.push_value("bravo");
+    /// rt.finish_key(); // 2
+    /// let mut ii = rt.iter();
+    /// assert_eq!(ii.next(), Some(&["foo", "bar"][..]));
+    /// assert_eq!(ii.next(), Some(&[][..]));
+    /// assert_eq!(ii.next(), Some(&["alpha", "bravo"][..]));
+    /// assert_eq!(ii.next(), None);
+    /// ```
     pub fn iter(&self) -> impl Iterator<Item = &[T]> + '_ {
         self.index
             .windows(2)
             .map(move |w| &self.values[w[0] as usize..w[1] as usize])
     }
 
-    // Iterates mutable slices, one slice for each entry.
+    /// Iterates mutable slices of values, one slice for each key.
+    /// 
+    /// Example:
+    /// 
+    /// ```
+    /// # use trellis::ramp_table::RampTable;
+    /// let mut rt = RampTable::new();
+    /// rt.push_value("foo");
+    /// rt.push_value("bar");
+    /// rt.finish_key(); // 0
+    /// rt.iter_mut().next().unwrap()[1] = "BAR";
+    /// assert_eq!(rt.entry_values(0), &["foo", "BAR"][..]);
+    /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         let mut index_iter = self.index.iter();
         let last_index = (*index_iter.next().unwrap()) as usize;
@@ -113,6 +202,7 @@ impl<T> RampTable<T> {
     }
 
     /// Returns the number of distinct keys in the table.
+    #[deprecated]
     pub fn num_keys(&self) -> usize {
         self.index.len() - 1
     }
@@ -141,6 +231,19 @@ impl<T> RampTable<T> {
     pub fn push_entry_extend<I: Iterator<Item = T>>(&mut self, values: I) {
         self.values.extend(values);
         self.finish_key();
+    }
+}
+
+impl<T> core::ops::Index<usize> for RampTable<T> {
+    type Output = [T];
+    fn index(&self, i: usize) -> &[T] {
+        self.entry_values(i)
+    }
+}
+
+impl<T> core::ops::IndexMut<usize> for RampTable<T> {
+    fn index_mut(&mut self, i: usize) -> &mut [T] {
+        self.entry_values_mut(i)
     }
 }
 

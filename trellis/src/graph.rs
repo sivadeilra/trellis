@@ -42,7 +42,7 @@ impl Graph {
     }
 
     pub fn num_verts(&self) -> usize {
-        self.edges.num_keys()
+        self.edges.len()
     }
 
     pub fn num_edges(&self) -> usize {
@@ -71,7 +71,7 @@ impl Graph {
     /// Given a graph in RampTable form, produce a new graph that is its transposition.
     pub fn transpose(&self) -> Graph {
         let graph = &self.edges;
-        let nv = graph.num_keys();
+        let nv = graph.len();
 
         let mut t_index = vec![0; nv + 1];
         // We can build the index table directly, by counting the in-degree of every vertex.
@@ -90,7 +90,7 @@ impl Graph {
         // Build the values table.
         // counts: For each output vertex, the number of edges written to it.
         const PLACEHOLDER: u32 = !0u32;
-        let mut counts: Vec<u32> = vec![0; graph.num_keys()];
+        let mut counts: Vec<u32> = vec![0; graph.len()];
         let mut t_values: Vec<u32> = vec![PLACEHOLDER; graph.num_values()];
         for (from, to_list) in graph.iter().enumerate() {
             for &to in to_list.iter() {

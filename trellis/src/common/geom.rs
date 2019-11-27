@@ -1,9 +1,9 @@
 /* geometric types and macros (e.g. points and boxes) with application to, but
  * no specific dependence on graphs */
 
-use crate::vec2::Vec2;
-use crate::math::{fmin, fmax};
 use crate::common::arith::{BETWEEN, ROUND};
+use crate::math::{fmax, fmin};
+use crate::vec2::Vec2;
 
 pub type point = Vec2<i32>;
 pub type pointf = Vec2<f64>;
@@ -22,7 +22,7 @@ pub struct boxf {
 /* true if point p is inside box b */
 pub fn INSIDE(p: pointf, b: &boxf) -> bool {
     BETWEEN(b.LL.x, p.x, b.UR.x) && BETWEEN(b.LL.y, p.y, b.UR.y)
-}	
+}
 
 /* true if boxes b0 and b1 overlap */
 pub fn OVERLAP(b0: &boxf, b1: &boxf) -> bool {
@@ -60,32 +60,46 @@ pub fn CLIPBB(b0: &mut boxf, b1: &boxf) {
 
 use crate::math::sqr as SQR;
 
-pub fn LEN2(a: f64, b: f64) -> f64 { SQR(a) + SQR(b) }
-pub fn LEN(a: f64, b: f64) -> f64 { LEN2(a, b).sqrt() }
+pub fn LEN2(a: f64, b: f64) -> f64 {
+    SQR(a) + SQR(b)
+}
+pub fn LEN(a: f64, b: f64) -> f64 {
+    LEN2(a, b).sqrt()
+}
 
-pub fn DIST2(p: pointf, q: pointf) -> f64 { LEN2(p.x - q.x, p.y - q.y) }
-pub fn DIST(p: pointf, q: pointf) -> f64 { DIST2(p, q).sqrt() }
+pub fn DIST2(p: pointf, q: pointf) -> f64 {
+    LEN2(p.x - q.x, p.y - q.y)
+}
+pub fn DIST(p: pointf, q: pointf) -> f64 {
+    DIST2(p, q).sqrt()
+}
 
 pub const POINTS_PER_INCH: f64 = 72.0;
 pub const POINTS_PER_PC: f64 = (POINTS_PER_INCH / 6.0);
 pub const POINTS_PER_CM: f64 = (POINTS_PER_INCH * 0.393700787);
 pub const POINTS_PER_MM: f64 = (POINTS_PER_INCH * 0.0393700787);
 
-pub fn POINTS(a_inches: f64) -> i32 { ROUND((a_inches) * POINTS_PER_INCH) }
-pub fn INCH2PS(a_inches: f64) -> f64 { a_inches * POINTS_PER_INCH }
-pub fn PS2INCH(a_points: f64) -> f64 { a_points / POINTS_PER_INCH }
+pub fn POINTS(a_inches: f64) -> i32 {
+    ROUND((a_inches) * POINTS_PER_INCH)
+}
+pub fn INCH2PS(a_inches: f64) -> f64 {
+    a_inches * POINTS_PER_INCH
+}
+pub fn PS2INCH(a_points: f64) -> f64 {
+    a_points / POINTS_PER_INCH
+}
 
-pub fn P2PF(p: point) -> pointf { 
+pub fn P2PF(p: point) -> pointf {
     pointf {
-    x: p.x as f64,
-    y: p.y as f64,
+        x: p.x as f64,
+        y: p.y as f64,
     }
 }
 
 pub fn PF2P(pf: pointf) -> point {
     point {
         x: ROUND(pf.x) as i32,
-        y: ROUND(pf.y) as i32
+        y: ROUND(pf.y) as i32,
     }
 }
 
@@ -94,12 +108,12 @@ pub fn B2BF(b: &boxi) -> boxf {
         LL: P2PF(b.LL),
         UR: P2PF(b.UR),
     }
-}	
+}
 
 pub fn BF2B(bf: &boxf) -> boxi {
     boxi {
         LL: PF2P(bf.LL),
-        UR: PF2P(bf.UR)
+        UR: PF2P(bf.UR),
     }
 }
 
@@ -108,7 +122,7 @@ pub fn APPROXEQ(a: f64, b: f64, tol: f64) -> bool {
 }
 
 pub fn APPROXEQPT(p: pointf, q: pointf, tol: f64) -> bool {
-    	DIST2(p, q) < SQR(tol)
+    DIST2(p, q) < SQR(tol)
 }
 
 /* some common tolerance values */

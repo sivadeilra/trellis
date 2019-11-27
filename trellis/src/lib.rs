@@ -1,6 +1,8 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(non_upper_case_globals)]
 
 use crate::ramp_table::RampTable;
 use core::u16;
@@ -15,8 +17,10 @@ pub mod graph;
 pub mod gvc;
 pub mod layering;
 pub mod math;
+pub mod ortho;
 pub mod pathplan;
 pub mod polyline;
+pub mod priority_queue;
 pub mod ramp_table;
 pub mod topo_sort;
 pub mod vec2;
@@ -95,7 +99,7 @@ pub fn find_referenced_edges(e: &[V], nv: usize) -> Vec<bool> {
 
 /// Returns a vector with 'true' for each vertex is a source (has no inbound edges).
 pub fn find_sources(edges: &RampTable<u32>) -> Vec<bool> {
-    let nv = edges.num_keys();
+    let nv = edges.len();
     let mut sources = vec![true; nv];
     for &edge in edges.all_values().iter() {
         sources[edge as usize] = false;
