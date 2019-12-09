@@ -11,7 +11,6 @@ use core::u16;
 pub mod cgraph;
 pub mod common;
 pub mod disjoint;
-// pub mod dot_parser;
 pub mod error;
 pub mod find_chains;
 pub mod graph;

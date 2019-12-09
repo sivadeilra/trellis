@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "trellis",
+    "dot_parser",
     # "trellis_view",
     # "gtk_tinker",
     # "trellis_view_wasm",    
